@@ -1,0 +1,190 @@
+// Esquema de base de datos para el Registro de Receptores de Fondos Públicos
+// Municipalidad de Coyhaique
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// USUARIOS DEL SISTEMA
+// ============================================================
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  rut       String   @unique
+  phone     String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  organizations Organization[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+// ============================================================
+// ORGANIZACIÓN / INSTITUCIÓN
+// ============================================================
+model Organization {
+  id        String   @id @default(cuid())
+  // Datos básicos
+  name      String                         // Nombre de la organización
+  rut       String   @unique               // RUT de la organización
+  type      String                         // Tipo: club, fundación, corporación, etc.
+  address   String                         // Dirección
+  commune   String                         // Comuna
+  region    String   @default("Aysén")
+  phone     String?
+  email     String
+
+  // Representante legal (usuario dueño del registro)
+  legalRepId String
+  legalRep   User   @relation(fields: [legalRepId], references: [id])
+
+  // Número de registro nacional Ley 19.862
+  registroNacional String?
+
+  // Datos bancarios
+  bankName          String?   // Nombre del banco
+  bankAccountType   String?   // Tipo de cuenta
+  bankAccountNumber String?   // Número de cuenta
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  registration    Registration?
+  members         DirectoryMember[]
+
+  @@index([legalRepId])
+}
+
+// ============================================================
+// MIEMBROS DEL DIRECTORIO
+// ============================================================
+model DirectoryMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name    String   // Nombre completo
+  rut     String   // RUT del miembro
+  role    String   // Cargo: Presidente, Secretario, Tesorero, etc.
+  email   String
+  phone   String?
+  address String?
+
+  @@index([organizationId])
+}
+
+// ============================================================
+// INSCRIPCIÓN / SOLICITUD
+// ============================================================
+model Registration {
+  id             String             @id @default(cuid())
+  organizationId String             @unique
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  status         RegistrationStatus @default(DRAFT)
+  observations   String?            // Notas del administrador al rechazar o aprobar
+  reviewedAt     DateTime?          // Cuándo fue revisada
+  reviewedBy     String?            // Email del admin que revisó
+  submittedAt    DateTime?          // Cuándo fue enviada para revisión
+  approvedAt     DateTime?          // Cuándo fue aprobada
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents Document[]
+
+  @@index([status])
+}
+
+// ============================================================
+// DOCUMENTOS ADJUNTOS
+// ============================================================
+model Document {
+  id             String       @id @default(cuid())
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  type       DocumentType // Tipo de documento
+  fileName   String       // Nombre original del archivo
+  filePath   String       // Ruta de almacenamiento
+  fileSize   Int          // Tamaño en bytes
+  mimeType   String       // Tipo MIME (application/pdf, image/jpeg, etc.)
+  uploadedAt DateTime     @default(now())
+
+  @@index([registrationId])
+}
+
+// ============================================================
+// NEXTAUTH - TABLAS REQUERIDAS
+// ============================================================
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================================
+// ENUMERACIONES
+// ============================================================
+enum Role {
+  USER  // Representante legal / usuario normal
+  ADMIN // Funcionario municipal que valida
+}
+
+enum RegistrationStatus {
+  DRAFT     // Borrador - en proceso de completar
+  PENDING   // Enviada - esperando revisión del admin
+  APPROVED  // Aprobada - organización certificada
+  REJECTED  // Rechazada - con observaciones para corregir
+}
+
+enum DocumentType {
+  RUT_ORGANIZACION        // Fotocopia RUT de la institución
+  CERTIFICADO_DIRECTORIO  // Certificado de Directorio de Persona Jurídica
+  CERTIFICADO_LEY_19862   // Certificado Ley 19.862 con directiva actualizada
+  CERTIFICADO_VIGENCIA    // Certificado de Vigencia de Persona Jurídica
+  CEDULAS_DIRECTIVOS      // Fotocopias de cédulas de identidad del directorio
+  ESTATUTOS               // Fotocopia de estatutos firmados/timbrados
+  CERTIFICADO_BANCARIO    // Certificado bancario con datos de cuenta
+}
