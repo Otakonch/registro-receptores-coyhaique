@@ -63,7 +63,7 @@ export async function enviarCorreoBienvenida(nombre: string, email: string) {
       <ol style="color:#15803d;font-size:13px;margin:8px 0 0;padding-left:20px;line-height:1.8;">
         <li>Inicia sesión con tu correo y contraseña.</li>
         <li>Completa los datos de tu organización.</li>
-        <li>Sube los 8 documentos requeridos.</li>
+        <li>Sube los 7 documentos requeridos.</li>
         <li>Envía tu solicitud a revisión.</li>
       </ol>
     </div>

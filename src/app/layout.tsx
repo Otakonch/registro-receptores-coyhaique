@@ -8,6 +8,11 @@ export const metadata: Metadata = {
   title: "Registro de Receptores de Fondos Públicos — Municipalidad de Coyhaique",
   description:
     "Plataforma de inscripción para organizaciones privadas sin fines de lucro que reciben o pretenden recibir fondos de la Municipalidad de Coyhaique, según Ley N°19.862.",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
 };
 
 export default function RootLayout({
@@ -19,8 +24,12 @@ export default function RootLayout({
     <html lang="es">
       <body>
         <SessionProvider>
+          {/* 2.4.1 WCAG — Saltar al contenido principal */}
+          <a href="#contenido-principal" className="skip-link">
+            Saltar al contenido principal
+          </a>
           <Navbar />
-          <main className="min-h-screen bg-gray-50">
+          <main id="contenido-principal" className="min-h-screen bg-gray-50">
             {children}
           </main>
 

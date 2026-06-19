@@ -5,12 +5,9 @@
 
 ## PASO 1 — Instalar herramientas necesarias
 
-Necesitas tener instalado:
-
 ### Node.js
 - Descarga desde: https://nodejs.org/
 - Elige la versión **LTS** (la recomendada)
-- Instala normalmente (siguiente, siguiente, finalizar)
 - Verifica abriendo CMD y escribiendo: `node --version`
 
 ### PostgreSQL
@@ -24,7 +21,7 @@ Necesitas tener instalado:
 
 1. Abre **pgAdmin** (se instala con PostgreSQL)
 2. Conéctate con el usuario `postgres` y la contraseña que definiste
-3. Haz click derecho en "Databases" → "Create" → "Database"
+3. Click derecho en "Databases" → "Create" → "Database"
 4. Nombre: `registro_coyhaique`
 5. Guarda
 
@@ -32,43 +29,47 @@ Necesitas tener instalado:
 
 ## PASO 3 — Configurar las variables de entorno
 
-1. En la carpeta del proyecto, encuentra el archivo `.env.example`
-2. **Cópialo** y renómbralo a `.env.local`
-3. Abre `.env.local` y edita la línea `DATABASE_URL` con tus datos:
+1. En la carpeta del proyecto, copia el archivo `.env.example` y renómbralo a `.env.local`
+2. Abre `.env.local` y completa **todos** los valores:
 
 ```
+# Base de datos
 DATABASE_URL="postgresql://postgres:TU_CONTRASEÑA@localhost:5432/registro_coyhaique"
-```
+DIRECT_URL="postgresql://postgres:TU_CONTRASEÑA@localhost:5432/registro_coyhaique"
 
-4. Para `NEXTAUTH_SECRET`, ve a https://generate-secret.vercel.app/32 y copia el valor generado
+# Autenticación — genera un secreto en: https://generate-secret.vercel.app/32
+NEXTAUTH_SECRET="pega_aqui_el_secreto_generado"
 
-El archivo `.env.local` final debe verse así:
-```
-DATABASE_URL="postgresql://postgres:MiContraseña123@localhost:5432/registro_coyhaique"
-NEXTAUTH_SECRET="abc123xyz..."
+# URL del servidor (sin barra final)
+# En producción, usa el dominio real: https://registro.coyhaique.cl
 NEXTAUTH_URL="http://localhost:3000"
+
+# Correo saliente (SMTP)
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_SECURE="false"
+SMTP_USER="correo@municipalidadcoyhaique.cl"
+SMTP_PASS="contraseña_o_app_password"
 ```
+
+> **Nota SMTP con Gmail:** Si usas Gmail, debes generar una "Contraseña de aplicación" en
+> Configuración de tu cuenta → Seguridad → Verificación en dos pasos → Contraseñas de aplicación.
+> No uses tu contraseña normal de Gmail.
 
 ---
 
 ## PASO 4 — Instalar dependencias y configurar la base de datos
 
-Abre **CMD** (símbolo del sistema) o **PowerShell**, navega a la carpeta del proyecto:
-
-```
-cd "C:\Users\Informatica\Desktop\Ricardo Coloma\Web\Pagina Web Municipalidad\registro-receptores"
-```
-
-Luego ejecuta estos comandos en orden:
+Abre CMD o PowerShell, navega a la carpeta del proyecto y ejecuta en orden:
 
 ```bash
-# Instalar todas las librerías del proyecto
+# 1. Instalar todas las librerías del proyecto
 npm install
 
-# Crear las tablas en la base de datos
+# 2. Crear las tablas en la base de datos
 npm run db:push
 
-# Crear el usuario administrador inicial
+# 3. Crear el usuario administrador principal (SUPER_ADMIN)
 npm run db:seed
 ```
 
@@ -76,11 +77,17 @@ npm run db:seed
 
 ## PASO 5 — Iniciar el servidor
 
+**Modo desarrollo:**
 ```bash
 npm run dev
 ```
-
 Abre tu navegador en: **http://localhost:3000**
+
+**Modo producción** (para servidor real):
+```bash
+npm run build
+npm run start
+```
 
 ---
 
@@ -89,9 +96,28 @@ Abre tu navegador en: **http://localhost:3000**
 ```
 Email:      admin@municipalidadcoyhaique.cl
 Contraseña: Admin1234!
+Rol:        SUPER_ADMIN (administrador del sistema)
 ```
 
 ⚠️ **IMPORTANTE:** Cambia esta contraseña inmediatamente después del primer acceso.
+
+---
+
+## Roles del sistema
+
+| Rol | Descripción |
+|-----|-------------|
+| `USER` | Representante legal. Solo ve su propia inscripción. |
+| `ADMIN` | Funcionario municipal. Accede al panel y gestiona inscripciones. |
+| `SUPER_ADMIN` | Administrador del sistema. Tiene acceso total, incluyendo gestión de usuarios. |
+
+**Para crear administradores adicionales:**
+1. Pide que la persona se registre normalmente en la plataforma
+2. Inicia sesión con la cuenta SUPER_ADMIN
+3. Ve al Panel Admin → pestaña **Usuarios**
+4. Busca a la persona y haz clic en **"Hacer admin"**
+
+Solo el SUPER_ADMIN puede asignar y quitar roles de administrador.
 
 ---
 
@@ -100,7 +126,12 @@ Contraseña: Admin1234!
 ```
 registro-receptores/
 ├── prisma/
-│   └── schema.prisma       ← Estructura de la base de datos
+│   ├── schema.prisma       ← Estructura de la base de datos
+│   └── seed.ts             ← Crea el primer administrador
+├── public/
+│   ├── uploads/            ← Documentos subidos por usuarios
+│   ├── coyhaique-hero.jpg  ← Imagen principal de la página de inicio
+│   └── favicon.png         ← Ícono del sitio
 ├── src/
 │   ├── app/
 │   │   ├── (auth)/         ← Páginas de login y registro
@@ -110,8 +141,11 @@ registro-receptores/
 │   │   └── page.tsx        ← Página de inicio
 │   ├── components/         ← Componentes reutilizables
 │   └── lib/                ← Utilidades y configuración
-├── .env.local              ← Variables de entorno (TÚ LO CREAS)
-└── package.json            ← Lista de dependencias
+├── .env.example            ← Plantilla de variables de entorno
+├── .env.local              ← TU archivo de configuración (no subir al servidor)
+├── INSTRUCCIONES.md        ← Este archivo
+├── MIGRAR-BD.bat           ← Script para actualizar la base de datos
+└── package.json            ← Dependencias del proyecto
 ```
 
 ---
@@ -119,18 +153,18 @@ registro-receptores/
 ## Flujo de uso
 
 ### Para las organizaciones (usuarios):
-1. Entran a la plataforma y se **registran** con sus datos
-2. Completan el **formulario de inscripción** (3 pasos)
-3. **Suben los documentos** requeridos
-4. **Envían a revisión**
-5. Esperan la respuesta del administrador
+1. Se registran en la plataforma con sus datos personales
+2. Completan el formulario de inscripción (datos de la organización + directorio)
+3. Suben los 7 documentos requeridos en PDF
+4. Envían a revisión
+5. Reciben notificación por correo con el resultado
 
-### Para el administrador municipal:
-1. Entra al sistema con sus credenciales
-2. Ve el **panel admin** con todas las inscripciones
-3. Filtra por estado (En revisión, Aprobadas, Rechazadas)
-4. Revisa cada inscripción, ve los documentos
-5. **Aprueba o rechaza** con observaciones
+### Para el administrador municipal (ADMIN):
+1. Inicia sesión y accede al Panel Admin
+2. Filtra inscripciones por estado (En revisión, Aprobadas, Rechazadas, etc.)
+3. Revisa cada inscripción y sus documentos
+4. Aprueba o rechaza con observaciones
+5. El sistema envía el correo de notificación automáticamente
 
 ---
 
@@ -138,24 +172,38 @@ registro-receptores/
 
 ```bash
 npm run dev          # Iniciar en modo desarrollo
-npm run build        # Preparar para producción
-npm run db:studio    # Abrir interfaz visual de la BD (muy útil)
-npm run db:push      # Actualizar tablas si cambia el schema
+npm run build        # Compilar para producción
+npm run start        # Iniciar en modo producción
+npm run db:studio    # Abrir interfaz visual de la BD (útil para depuración)
+npm run db:push      # Aplicar cambios al schema de BD (ejecutar MIGRAR-BD.bat es equivalente)
+npm run db:seed      # Volver a crear el usuario administrador inicial
 ```
 
 ---
 
 ## Preguntas frecuentes
 
-**¿Cómo cambio el nombre de la municipalidad o los colores?**
-- Nombre: busca "Municipalidad de Coyhaique" en los archivos y reemplaza
-- Color principal (azul): edita `src/app/globals.css`, la línea `--primary`
+**¿Cómo cambio los colores del sitio?**
+- Edita `src/app/globals.css`, la variable `--primary` (en formato HSL)
 
-**¿Dónde se guardan los archivos que suben los usuarios?**
-- En la carpeta `public/uploads/` dentro del proyecto
+**¿Cómo cambio el nombre de la municipalidad?**
+- Busca "Municipalidad de Coyhaique" en los archivos `.tsx` y reemplaza por el nuevo nombre
 
-**¿Cómo agrego otro administrador?**
-- Registra un usuario normal y luego en pgAdmin cambia su campo `role` a `ADMIN`
+**¿Dónde se guardan los documentos subidos?**
+- En `public/uploads/{id-inscripcion}/` dentro del proyecto
+- ⚠️ Asegúrate de hacer respaldos periódicos de esta carpeta en producción
+
+**¿Qué hacer si el correo no se envía?**
+- Verifica los valores SMTP en `.env.local`
+- Prueba las credenciales con un cliente de correo externo
+- Revisa los logs del servidor para ver el error exacto
+
+**¿Cómo actualizo la base de datos si cambia el schema?**
+- Ejecuta `MIGRAR-BD.bat` o corre `npm run db:push` en la terminal
+
+**¿Cómo hago un respaldo de la base de datos?**
+- En pgAdmin: click derecho en `registro_coyhaique` → "Backup..."
+- O desde terminal: `pg_dump -U postgres registro_coyhaique > respaldo.sql`
 
 ---
 

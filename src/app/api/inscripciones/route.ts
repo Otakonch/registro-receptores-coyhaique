@@ -3,38 +3,33 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { hasAdminAccess } from "@/lib/roles";
 
-// Schema de validación para la organización
 const organizationSchema = z.object({
-  // Datos de la organización
-  name: z.string().min(3, "Nombre requerido"),
-  rut: z.string().min(8, "RUT de la organización requerido"),
-  type: z.string().min(1, "Tipo de organización requerido"),
-  address: z.string().min(5, "Dirección requerida"),
-  commune: z.string().min(2, "Comuna requerida"),
-  phone: z.string().optional(),
-  email: z.string().email("Correo de la organización inválido"),
-  registroNacional: z.string().optional(),
-
-  // Datos bancarios
-  bankName: z.string().optional(),
-  bankAccountType: z.string().optional(),
-  bankAccountNumber: z.string().optional(),
-
-  // Miembros del directorio
+  name:    z.string().min(3,  "Nombre requerido"),
+  rut:     z.string().min(8,  "RUT de la organización requerido"),
+  type:    z.string().min(1,  "Tipo de organización requerido"),
+  address: z.string().min(5,  "Dirección requerida"),
+  commune: z.string().min(2,  "Comuna requerida"),
+  phone:   z.string().min(1,  "Teléfono de la organización requerido"),
+  email:   z.string().email(  "Correo de la organización inválido"),
+  registroNacional:   z.string().optional(),  // opcional por naturaleza ("si ya lo tienes")
+  bankName:           z.string().min(1,  "Nombre del banco requerido"),
+  bankAccountType:    z.string().min(1,  "Tipo de cuenta requerido"),
+  bankAccountNumber:  z.string().min(1,  "Número de cuenta requerido"),
+  directorioVigencia: z.string().min(1,  "Fecha de vigencia del directorio requerida"),
   members: z.array(
     z.object({
-      name: z.string().min(3),
-      rut: z.string().min(8),
-      role: z.string().min(1),
-      email: z.string().email(),
-      phone: z.string().optional(),
-      address: z.string().optional(),
+      name:    z.string().min(3),
+      rut:     z.string().min(8),
+      role:    z.string().min(1),
+      email:   z.string().email(),
+      phone:   z.string().min(1,  "Teléfono del miembro requerido"),
+      address: z.string().min(1,  "Dirección del miembro requerida"),
     })
   ).min(1, "Debe agregar al menos un miembro del directorio"),
 });
 
-// GET - Obtener inscripción del usuario actual
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -44,9 +39,8 @@ export async function GET(req: NextRequest) {
     }
 
     const userId = (session.user as any).id;
-    const isAdmin = (session.user as any).role === "ADMIN";
+    const isAdmin = hasAdminAccess((session.user as any).role);
 
-    // Si es admin, puede ver todas las inscripciones
     if (isAdmin) {
       const { searchParams } = new URL(req.url);
       const status = searchParams.get("status");
@@ -79,7 +73,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ registrations, total, page, limit });
     }
 
-    // Si es usuario normal, ve solo su inscripción
     const organization = await db.organization.findFirst({
       where: { legalRepId: userId },
       include: {
@@ -100,7 +93,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST - Crear nueva organización e inscripción
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -111,11 +103,7 @@ export async function POST(req: NextRequest) {
 
     const userId = (session.user as any).id;
 
-    // Verificar si ya tiene una organización registrada
-    const existing = await db.organization.findFirst({
-      where: { legalRepId: userId },
-    });
-
+    const existing = await db.organization.findFirst({ where: { legalRepId: userId } });
     if (existing) {
       return NextResponse.json(
         { error: "Ya tienes una organización registrada" },
@@ -126,11 +114,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = organizationSchema.parse(body);
 
-    // Verificar si el RUT de la organización ya existe
-    const existingRut = await db.organization.findUnique({
-      where: { rut: data.rut },
-    });
-
+    const existingRut = await db.organization.findUnique({ where: { rut: data.rut } });
     if (existingRut) {
       return NextResponse.json(
         { error: "El RUT de esta organización ya está registrado" },
@@ -138,9 +122,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Crear organización con miembros y registro en una transacción
     const result = await db.$transaction(async (tx) => {
-      // 1. Crear la organización
       const organization = await tx.organization.create({
         data: {
           name: data.name,
@@ -154,11 +136,11 @@ export async function POST(req: NextRequest) {
           bankName: data.bankName,
           bankAccountType: data.bankAccountType,
           bankAccountNumber: data.bankAccountNumber,
+          directorioVigencia: data.directorioVigencia ? new Date(data.directorioVigencia) : undefined,
           legalRepId: userId,
         },
       });
 
-      // 2. Crear los miembros del directorio
       await tx.directoryMember.createMany({
         data: data.members.map((m) => ({
           organizationId: organization.id,
@@ -171,7 +153,6 @@ export async function POST(req: NextRequest) {
         })),
       });
 
-      // 3. Crear la inscripción en estado DRAFT
       const registration = await tx.registration.create({
         data: {
           organizationId: organization.id,

@@ -8,6 +8,8 @@ import {
   enviarCorreoRechazado,
   enviarCorreoEnviado,
 } from "@/lib/email";
+import { createAdminLog } from "@/lib/adminLog";
+import { hasAdminAccess } from "@/lib/roles";
 
 const estadoSchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
@@ -26,7 +28,7 @@ export async function PATCH(
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    const isAdmin = (session.user as any).role === "ADMIN";
+    const isAdmin = hasAdminAccess((session.user as any).role);
     if (!isAdmin) {
       return NextResponse.json(
         { error: "Solo los administradores pueden cambiar el estado" },
@@ -51,6 +53,18 @@ export async function PATCH(
           include: { legalRep: true },
         },
       },
+    });
+
+    // Registrar acción en el log de administrador
+    await createAdminLog({
+      adminId:        (session.user as any).id,
+      adminName:      session.user.name  ?? "Admin",
+      adminEmail:     session.user.email ?? "",
+      action:         status === "APPROVED" ? "APROBADA" : "RECHAZADA",
+      orgName:        registration.organization.name,
+      orgRut:         registration.organization.rut,
+      registrationId: params.id,
+      details:        observations ?? null,
     });
 
     // Enviar correo al representante legal
@@ -109,6 +123,9 @@ export async function POST(
         organization: {
           include: { legalRep: true },
         },
+        documents: {
+          select: { type: true },
+        },
       },
     });
 
@@ -123,6 +140,27 @@ export async function POST(
     if (registration.status !== "DRAFT" && registration.status !== "REJECTED") {
       return NextResponse.json(
         { error: "Solo puedes enviar inscripciones en borrador o rechazadas" },
+        { status: 400 }
+      );
+    }
+
+    // Verificar que los 7 documentos requeridos estén subidos
+    const REQUIRED_DOC_TYPES = [
+      "RUT_ORGANIZACION",
+      "CERTIFICADO_DIRECTORIO",
+      "CERTIFICADO_LEY_19862",
+      "CERTIFICADO_VIGENCIA",
+      "CEDULAS_DIRECTIVOS",
+      "ESTATUTOS",
+      "CERTIFICADO_BANCARIO",
+    ];
+    const uploadedTypes = new Set(registration.documents.map((d: any) => d.type));
+    const missingDocs = REQUIRED_DOC_TYPES.filter((t) => !uploadedTypes.has(t));
+    if (missingDocs.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Faltan ${missingDocs.length} documento${missingDocs.length !== 1 ? "s" : ""} requerido${missingDocs.length !== 1 ? "s" : ""}. Debes subir todos los documentos antes de enviar a revisión.`,
+        },
         { status: 400 }
       );
     }

@@ -42,3 +42,7 @@ prisma/dev.db-journal
 db_log.txt
 instalar_log.txt
 npm_log.txt
+migration-log.txt
+puerto-log.txt
+
+.vercel

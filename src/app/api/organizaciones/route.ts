@@ -18,12 +18,24 @@ export async function GET(req: NextRequest) {
 
     if (tipo) where.type = tipo;
 
+    // Búsqueda de texto a nivel de BD para que funcione correctamente con paginación
+    if (q) {
+      where.OR = [
+        { name:    { contains: q, mode: "insensitive" } },
+        { rut:     { contains: q, mode: "insensitive" } },
+        { commune: { contains: q, mode: "insensitive" } },
+      ];
+    }
+
     const [orgs, total] = await Promise.all([
       db.organization.findMany({
         where,
         include: {
           registration: {
             select: { approvedAt: true, id: true, status: true },
+          },
+          legalRep: {
+            select: { name: true, email: true },
           },
         },
         orderBy: { name: "asc" },
@@ -33,18 +45,8 @@ export async function GET(req: NextRequest) {
       db.organization.count({ where }),
     ]);
 
-    // Filtrar por búsqueda de texto (nombre, rut o comuna)
-    const filtered = q
-      ? orgs.filter(
-          (o) =>
-            o.name.toLowerCase().includes(q) ||
-            o.rut.toLowerCase().includes(q) ||
-            o.commune?.toLowerCase().includes(q)
-        )
-      : orgs;
-
     return NextResponse.json({
-      organizations: filtered.map((o) => ({
+      organizations: orgs.map((o) => ({
         id: o.id,
         name: o.name,
         rut: o.rut,
@@ -52,6 +54,8 @@ export async function GET(req: NextRequest) {
         commune: o.commune,
         approvedAt: o.registration?.approvedAt ?? null,
         registrationId: o.registration?.id ?? null,
+        legalRepId: o.legalRepId,
+        legalRep: o.legalRep ? { name: o.legalRep.name, email: o.legalRep.email } : null,
       })),
       total,
       page,

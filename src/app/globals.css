@@ -37,3 +37,50 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
+
+/* ============================================================
+   ACCESIBILIDAD — WCAG 2.1 / 2.2
+   ============================================================ */
+
+/* 2.4.1 — Enlace "Saltar al contenido principal" (skip link) */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: hsl(var(--primary));
+  color: #fff;
+  border-radius: 0 0 0.375rem 0.375rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: top 0.1s;
+}
+.skip-link:focus {
+  top: 0;
+}
+
+/* 2.4.7 — Indicadores de foco visibles para navegación por teclado */
+:focus-visible {
+  outline: 3px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Foco sobre fondos oscuros (navbar, headers verdes) */
+.bg-primary *:focus-visible,
+header *:focus-visible {
+  outline-color: #ffffff;
+}
+
+/* Foco en select nativo */
+select:focus-visible {
+  outline: 3px solid hsl(var(--ring));
+  outline-offset: 1px;
+}
+
+/* Remover outline en click (solo mostrar con teclado) */
+:focus:not(:focus-visible) {
+  outline: none;
+}

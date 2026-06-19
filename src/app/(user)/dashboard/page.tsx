@@ -31,14 +31,34 @@ export default function DashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [uploadError, setUploadError] = useState<string>("");
+  const [submitError, setSubmitError] = useState<string>("");
+  // true si el usuario tiene un borrador guardado en localStorage sin haber enviado la inscripción
+  const [hasDraft, setHasDraft] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
     if (status === "authenticated") {
-      if ((session?.user as any)?.role === "ADMIN") router.push("/admin");
+      const role = (session?.user as any)?.role;
+      if (role === "ADMIN" || role === "SUPER_ADMIN") router.push("/admin");
       else fetchData();
     }
   }, [status, session]);
+
+  // Detecta si hay un borrador guardado en localStorage (datos del formulario de inscripción)
+  useEffect(() => {
+    try {
+      const savedOrg = localStorage.getItem("inscripcion_org");
+      const savedMembers = localStorage.getItem("inscripcion_members");
+      // Solo muestra el borrador si hay datos reales (nombre de organización)
+      if (savedOrg) {
+        const org = JSON.parse(savedOrg);
+        setHasDraft(!!org?.name);
+      } else if (savedMembers) {
+        setHasDraft(true);
+      }
+    } catch {}
+  }, []);
 
   async function fetchData() {
     try {
@@ -53,11 +73,17 @@ export default function DashboardPage() {
 
   async function handleEnviar() {
     if (!data?.registration) return;
+    setSubmitError("");
     const res = await fetch(
       `/api/inscripciones/${data.registration.id}/estado`,
       { method: "POST" }
     );
-    if (res.ok) fetchData();
+    if (res.ok) {
+      fetchData();
+    } else {
+      const json = await res.json().catch(() => ({}));
+      setSubmitError(json.error || "Error al enviar la solicitud.");
+    }
   }
 
   if (loading || status === "loading") {
@@ -82,19 +108,56 @@ export default function DashboardPage() {
         <Card className="text-center py-12">
           <CardContent>
             <Building2 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-700 mb-2">
-              Aún no tienes una organización registrada
-            </h2>
-            <p className="text-gray-500 mb-6 max-w-sm mx-auto text-sm">
-              Para comenzar la inscripción, completa los datos de tu organización
-              y los miembros del directorio.
-            </p>
-            <Link href="/inscripcion">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Inscribir mi Organización
-              </Button>
-            </Link>
+
+            {hasDraft ? (
+              // El usuario tiene un borrador guardado: mostrar opción de continuar
+              <>
+                <h2 className="text-xl font-semibold text-gray-700 mb-2">
+                  Tienes una inscripción en progreso
+                </h2>
+                <p className="text-gray-500 mb-6 max-w-sm mx-auto text-sm">
+                  Guardaste un borrador anteriormente. Puedes continuar donde lo dejaste.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Link href="/inscripcion">
+                    <Button>
+                      <ArrowRight className="h-4 w-4 mr-2" />
+                      Continuar Inscripción
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    className="text-gray-500"
+                    onClick={() => {
+                      // Elimina el borrador y vuelve a mostrar la pantalla inicial
+                      localStorage.removeItem("inscripcion_org");
+                      localStorage.removeItem("inscripcion_members");
+                      localStorage.removeItem("inscripcion_step");
+                      setHasDraft(false);
+                    }}
+                  >
+                    Descartar borrador
+                  </Button>
+                </div>
+              </>
+            ) : (
+              // Sin borrador: pantalla inicial normal
+              <>
+                <h2 className="text-xl font-semibold text-gray-700 mb-2">
+                  Aún no tienes una organización registrada
+                </h2>
+                <p className="text-gray-500 mb-6 max-w-sm mx-auto text-sm">
+                  Para comenzar la inscripción, completa los datos de tu organización
+                  y los miembros del directorio.
+                </p>
+                <Link href="/inscripcion">
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Inscribir mi Organización
+                  </Button>
+                </Link>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
@@ -226,7 +289,7 @@ export default function DashboardPage() {
                   Documentos Requeridos
                 </CardTitle>
                 <CardDescription>
-                  Sube todos los documentos en formato PDF, JPG o PNG (máx. 10 MB)
+                  Sube todos los documentos en formato PDF (máx. 10 MB)
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -270,10 +333,10 @@ export default function DashboardPage() {
                                 <input
                                   type="file"
                                   className="hidden"
-                                  accept=".pdf,.jpg,.jpeg,.png"
+                                  accept=".pdf"
                                   onChange={(e) => {
                                     const file = e.target.files?.[0];
-                                    if (file) uploadDoc(file, type, data.registration.id, fetchData);
+                                    if (file) uploadDoc(file, type, data.registration.id, fetchData, setUploadError);
                                   }}
                                 />
                                 <Button variant="outline" size="sm" asChild>
@@ -291,21 +354,50 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Botón enviar a revisión */}
-                {(data.registration.status === "DRAFT" || data.registration.status === "REJECTED") && (
-                  <div className="mt-6 pt-4 border-t">
-                    <Button
-                      onClick={handleEnviar}
-                      className="w-full"
-                      size="lg"
-                    >
-                      Enviar a Revisión
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </Button>
-                    <p className="text-xs text-gray-400 text-center mt-2">
-                      Asegúrate de haber subido todos los documentos antes de enviar.
-                    </p>
-                  </div>
-                )}
+                {(data.registration.status === "DRAFT" || data.registration.status === "REJECTED") && (() => {
+                  const totalDocs = Object.keys(DOCUMENT_TYPE_LABELS).length;
+                  const uploadedDocs = data.registration.documents?.filter(
+                    (d: any) => Object.keys(DOCUMENT_TYPE_LABELS).includes(d.type)
+                  ).length ?? 0;
+                  const missingDocs = totalDocs - uploadedDocs;
+                  const allDocsReady = missingDocs === 0;
+                  return (
+                    <div className="mt-6 pt-4 border-t">
+                      {uploadError && (
+                        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm mb-3">
+                          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                          {uploadError}
+                        </div>
+                      )}
+                      {!allDocsReady && (
+                        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-700 text-sm mb-3">
+                          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                          Faltan {missingDocs} documento{missingDocs !== 1 ? "s" : ""} por subir. Debes completar los {totalDocs} documentos requeridos para poder enviar a revisión.
+                        </div>
+                      )}
+                      {submitError && (
+                        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm mb-3">
+                          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                          {submitError}
+                        </div>
+                      )}
+                      <Button
+                        onClick={handleEnviar}
+                        className="w-full"
+                        size="lg"
+                        disabled={!allDocsReady}
+                      >
+                        Enviar a Revisión
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                      <p className="text-xs text-gray-400 text-center mt-2">
+                        {allDocsReady
+                          ? `Todos los documentos están listos (${totalDocs}/${totalDocs}). Puedes enviar tu solicitud.`
+                          : `Documentos subidos: ${uploadedDocs} de ${totalDocs}`}
+                      </p>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           )}
@@ -320,8 +412,10 @@ async function uploadDoc(
   file: File,
   documentType: string,
   registrationId: string,
-  onSuccess: () => void
+  onSuccess: () => void,
+  setError: (msg: string) => void
 ) {
+  setError("");
   const formData = new FormData();
   formData.append("file", file);
   formData.append("registrationId", registrationId);
@@ -337,9 +431,9 @@ async function uploadDoc(
       onSuccess();
     } else {
       const data = await res.json();
-      alert(data.error || "Error al subir el archivo");
+      setError(data.error || "Error al subir el archivo");
     }
   } catch {
-    alert("Error al subir el archivo. Inténtalo nuevamente.");
+    setError("Error al subir el archivo. Inténtalo nuevamente.");
   }
 }

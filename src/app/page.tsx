@@ -13,13 +13,13 @@ import {
   Phone,
 } from "lucide-react";
 
+// Documentos que deben subirse en la plataforma (7 en total, coincide con DocumentType en BD)
 const REQUIRED_DOCS = [
   "Fotocopia RUT de la institución u/o organización",
   "Certificado de Directorio de Persona Jurídica (vigencia ≤ 60 días)",
-  "Correo, teléfono y dirección de todos los miembros del directorio",
   "Certificado correspondiente a la Ley 19.862 con directiva actualizada",
   "Certificado de Vigencia de Persona Jurídica (vigencia ≤ 60 días)",
-  "Fotocopia de Cédula de Identidad de todos los miembros del directorio",
+  "Fotocopias de Cédula de Identidad de todos los miembros del directorio",
   "Fotocopia de estatutos firmados o timbrados",
   "Certificado bancario: número de cuenta, nombre de la organización y banco (vigencia ≤ 60 días)",
 ];
@@ -38,7 +38,7 @@ const STEPS = [
   {
     step: "3",
     title: "Sube los documentos",
-    desc: "Adjunta todos los documentos requeridos en formato PDF, JPG o PNG (máx. 10 MB).",
+    desc: "Adjunta todos los documentos requeridos en formato PDF (máx. 10 MB cada uno).",
   },
   {
     step: "4",
@@ -170,7 +170,7 @@ export default function HomePage() {
           <div className="bg-white rounded-lg border border-gray-200 p-6 text-gray-600 space-y-3 shadow-sm">
             <p>
               Es un registro de las <strong>personas jurídicas privadas sin fines de lucro</strong>{" "}
-              (clubs, corporaciones, fundaciones, juntas de vecinos, etc.) que han recibido
+              (clubes, corporaciones, fundaciones, juntas de vecinos, etc.) que han recibido
               o pretenden recibir financiamiento de la Municipalidad de Coyhaique.
             </p>
             <p>
@@ -226,7 +226,7 @@ export default function HomePage() {
             <h2 className="text-2xl font-bold text-gray-800">Documentos requeridos</h2>
           </div>
           <p className="text-sm text-gray-500 mb-4">
-            Ten estos documentos digitalizados (PDF, JPG o PNG, máx. 10 MB cada uno):
+            Ten estos documentos digitalizados en formato PDF (máx. 10 MB cada uno):
           </p>
           <div className="bg-white rounded-lg border border-gray-200 divide-y shadow-sm">
             {REQUIRED_DOCS.map((doc, i) => (
@@ -248,7 +248,7 @@ export default function HomePage() {
             <p>
               Puede inscribir su organización el <strong>representante legal</strong> de
               cualquier institución privada sin fines de lucro con personalidad jurídica vigente,
-              como clubs deportivos, culturales, sociales, juntas de vecinos, corporaciones,
+              como clubes deportivos, culturales, sociales, juntas de vecinos, corporaciones,
               fundaciones, centros de padres, entre otros.
             </p>
           </div>

@@ -15,12 +15,15 @@ export function formatRut(rut: string): string {
   return `${formatted}-${dv}`;
 }
 
-// Valida RUT chileno
+// Valida RUT chileno (Módulo 11)
+// Reglas: cuerpo entre 6 y 9 dígitos, dígito verificador calculado por Módulo 11
 export function validateRut(rut: string): boolean {
   const clean = rut.replace(/[^0-9kK]/g, "").toUpperCase();
   if (clean.length < 2) return false;
   const body = clean.slice(0, -1);
   const dv = clean.slice(-1);
+  // El cuerpo debe tener entre 6 y 9 dígitos (rango válido de RUT chilenos)
+  if (body.length < 6 || body.length > 9) return false;
   let sum = 0;
   let multiplier = 2;
   for (let i = body.length - 1; i >= 0; i--) {
@@ -31,6 +34,32 @@ export function validateRut(rut: string): boolean {
   const expectedDvStr =
     expectedDv === 11 ? "0" : expectedDv === 10 ? "K" : String(expectedDv);
   return dv === expectedDvStr;
+}
+
+// Valida solo el cuerpo del RUT (sin DV): longitud entre 6 y 9 dígitos
+export function validateRutBody(body: string): boolean {
+  const digits = body.replace(/[^0-9]/g, "");
+  return digits.length >= 6 && digits.length <= 9;
+}
+
+// Calcula el dígito verificador de un RUT dado solo el cuerpo numérico
+export function calculateDv(rutBody: string): string {
+  const clean = rutBody.replace(/[^0-9]/g, "");
+  if (!clean) return "";
+  let sum = 0;
+  let multiplier = 2;
+  for (let i = clean.length - 1; i >= 0; i--) {
+    sum += parseInt(clean[i]) * multiplier;
+    multiplier = multiplier === 7 ? 2 : multiplier + 1;
+  }
+  const dv = 11 - (sum % 11);
+  return dv === 11 ? "0" : dv === 10 ? "K" : String(dv);
+}
+
+// Valida formato de correo electrónico
+export function validateEmail(email: string): boolean {
+  const re = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+  return re.test(email.trim());
 }
 
 // Formatea tamaño de archivo
@@ -70,16 +99,18 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   CERTIFICADO_BANCARIO: "Certificado o Documento Bancario",
 };
 
-// Tipos de organización
+// Tipos de organización reconocidos por la Municipalidad (Ley N°19.862).
+// IMPORTANTE: estos valores son los que se almacenan en la BD.
+// Si se modifican, actualizar también el filtro en /organizaciones/page.tsx.
 export const ORGANIZATION_TYPES = [
   "Club Deportivo",
-  "Club Social",
+  "Club Social y Deportivo",
   "Junta de Vecinos",
   "Corporación",
   "Fundación",
   "Asociación Gremial",
-  "Centro de Padres y Apoderados",
   "Agrupación Cultural",
+  "Centro de Padres y Apoderados",
   "Organización Comunitaria",
   "Centro de Madres",
   "Otra",

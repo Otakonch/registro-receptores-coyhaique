@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { formatRut, ORGANIZATION_TYPES, DIRECTORY_ROLES } from "@/lib/utils";
+import { formatRut, validateRut, validateRutBody, validateEmail, calculateDv, ORGANIZATION_TYPES, DIRECTORY_ROLES } from "@/lib/utils";
 
 interface Member {
   name: string;
@@ -46,38 +46,193 @@ export default function InscripcionPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [savedToast, setSavedToast] = useState(false);
+
+  // Errores de campo individuales
+  const [orgErrors, setOrgErrors] = useState<Record<string, string>>({});
+  const [memberErrors, setMemberErrors] = useState<Record<string, string>[]>([{}]);
+
+  const defaultOrg = { name: "", rut: "", type: "", address: "", commune: "", phone: "", email: "", registroNacional: "", bankName: "", bankAccountType: "", bankAccountNumber: "", directorioVigencia: "" };
+  const defaultMembers: Member[] = [{ name: "", rut: "", role: "Presidente/a", email: "", phone: "", address: "" }];
 
   // Datos de la organización
-  const [org, setOrg] = useState({
-    name: "",
-    rut: "",
-    type: "",
-    address: "",
-    commune: "",
-    phone: "",
-    email: "",
-    registroNacional: "",
-    bankName: "",
-    bankAccountType: "",
-    bankAccountNumber: "",
-  });
+  const [org, setOrg] = useState(defaultOrg);
 
   // Miembros del directorio
-  const [members, setMembers] = useState<Member[]>([
-    { name: "", rut: "", role: "Presidente/a", email: "", phone: "", address: "" },
-  ]);
+  const [members, setMembers] = useState<Member[]>(defaultMembers);
+
+  // ── Persistencia automática en localStorage ───────────────────────────────
+  // Permite que el usuario cierre el navegador y regrese sin perder datos.
+  // localStorage persiste entre sesiones (a diferencia de sessionStorage).
+  //
+  // IMPORTANTE: usamos el flag isInitialized para evitar una condición de
+  // carrera. Sin él, los effects de "guardar" correrían en el primer render
+  // con los valores por defecto y sobrescribirían el borrador guardado antes
+  // de que el effect de "restaurar" tuviera tiempo de aplicar los datos.
+  // Con el flag, los effects de guardar ignoran la primera ejecución.
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Al montar el componente, restaura cualquier borrador previo y activa el flag
+  useEffect(() => {
+    try {
+      const savedOrg = localStorage.getItem("inscripcion_org");
+      const savedMembers = localStorage.getItem("inscripcion_members");
+      const savedStep = localStorage.getItem("inscripcion_step");
+      if (savedOrg) setOrg(JSON.parse(savedOrg));
+      if (savedMembers) setMembers(JSON.parse(savedMembers));
+      if (savedStep) setStep(Number(savedStep));
+    } catch {}
+    // Marca como inicializado: a partir de aquí los cambios de estado
+    // ya reflejan los datos del borrador (o los defaults si no había borrador)
+    setIsInitialized(true);
+  }, []);
+
+  // Guardar datos en localStorage cuando cambien (solo después de la restauración inicial)
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem("inscripcion_org", JSON.stringify(org));
+    } catch {}
+  }, [org, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem("inscripcion_members", JSON.stringify(members));
+    } catch {}
+  }, [members, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem("inscripcion_step", String(step));
+    } catch {}
+  }, [step, isInitialized]);
 
   if (status === "unauthenticated") {
     router.push("/login");
     return null;
   }
 
+  // Formatea solo el cuerpo del RUT con puntos
+  function formatRutBody(digits: string): string {
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  }
+
+  // Extrae el cuerpo del RUT (sin DV) desde el valor almacenado
+  function getRutBody(rut: string): string {
+    return rut.includes("-") ? rut.split("-")[0] : rut;
+  }
+
+  // Extrae el DV desde el valor almacenado
+  function getRutDv(rut: string): string {
+    return rut.includes("-") ? rut.split("-")[1] : "";
+  }
+
+  // Calcula el error del cuerpo del RUT
+  function getRutBodyError(digits: string): string {
+    if (!digits) return "";
+    if (digits.length < 6) return "RUT demasiado corto (mínimo 6 dígitos)";
+    if (digits.length > 9) return "RUT demasiado largo (máximo 9 dígitos)";
+    return "";
+  }
+
+  // Valida RUT completo: longitud correcta + DV coincide con Módulo 11
+  function isRutValid(rut: string): boolean {
+    const body = getRutBody(rut).replace(/[^0-9]/g, "");
+    const dv = getRutDv(rut).toUpperCase();
+    if (!body || !dv) return false;
+    if (!validateRutBody(body)) return false;
+    return calculateDv(body) === dv;
+  }
+
+  // Maneja cambio en el campo DV de la organización (editable por usuario)
+  function handleOrgRutDvChange(value: string) {
+    const dv = value.replace(/[^0-9kK]/g, "").toUpperCase().slice(0, 1);
+    const body = getRutBody(org.rut);
+    const bodyDigits = body.replace(/[^0-9]/g, "");
+    const newRut = dv ? `${body}-${dv}` : body;
+    setOrg((p) => ({ ...p, rut: newRut }));
+    if (dv && bodyDigits.length >= 6) {
+      const expected = calculateDv(bodyDigits);
+      setOrgErrors((e) => ({
+        ...e,
+        rut: dv !== expected ? `Dígito verificador incorrecto (el correcto es ${expected})` : "",
+      }));
+    }
+  }
+
+  // Maneja cambio en el campo DV de un miembro (editable por usuario)
+  function handleMemberRutDvChange(index: number, value: string) {
+    const dv = value.replace(/[^0-9kK]/g, "").toUpperCase().slice(0, 1);
+    const body = getRutBody(members[index].rut);
+    const bodyDigits = body.replace(/[^0-9]/g, "");
+    const newRut = dv ? `${body}-${dv}` : body;
+    setMembers((prev) => prev.map((m, i) => i === index ? { ...m, rut: newRut } : m));
+    if (dv && bodyDigits.length >= 6) {
+      const expected = calculateDv(bodyDigits);
+      setMemberErrors((prev) => {
+        const next = [...prev];
+        if (!next[index]) next[index] = {};
+        next[index] = { ...next[index], rut: dv !== expected ? `Dígito verificador incorrecto (el correcto es ${expected})` : "" };
+        return next;
+      });
+    }
+  }
+
+  // Maneja cambio en el campo cuerpo del RUT (organización)
+  function handleOrgRutBodyChange(value: string) {
+    const digits = value.replace(/[^0-9]/g, "").slice(0, 9);
+    const body = formatRutBody(digits);
+    const currentDv = getRutDv(org.rut);
+    const fullRut = currentDv ? `${body}-${currentDv}` : body;
+    setOrg((p) => ({ ...p, rut: fullRut }));
+    // Revalida si ya hay DV ingresado
+    if (currentDv && digits.length >= 6) {
+      const expected = calculateDv(digits);
+      setOrgErrors((e) => ({ ...e, rut: currentDv !== expected ? `Dígito verificador incorrecto (el correcto es ${expected})` : "" }));
+    } else {
+      setOrgErrors((e) => ({ ...e, rut: getRutBodyError(digits) }));
+    }
+  }
+
+  // Maneja cambio en campo cuerpo del RUT (miembro)
+  function handleMemberRutBodyChange(index: number, value: string) {
+    const digits = value.replace(/[^0-9]/g, "").slice(0, 9);
+    const body = formatRutBody(digits);
+    const currentDv = getRutDv(members[index].rut);
+    const fullRut = currentDv ? `${body}-${currentDv}` : body;
+    setMembers((prev) => prev.map((m, i) => i === index ? { ...m, rut: fullRut } : m));
+    const error = currentDv && digits.length >= 6
+      ? (calculateDv(digits) !== currentDv ? `Dígito verificador incorrecto (el correcto es ${calculateDv(digits)})` : "")
+      : getRutBodyError(digits);
+    setMemberErrors((prev) => {
+      const next = [...prev];
+      if (!next[index]) next[index] = {};
+      next[index] = { ...next[index], rut: error };
+      return next;
+    });
+  }
+
   function handleOrgChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
-    if (name === "rut") {
-      setOrg((p) => ({ ...p, rut: formatRut(value) }));
+    if (name === "email") {
+      setOrg((p) => ({ ...p, email: value }));
+      setOrgErrors((e) => ({ ...e, email: "" }));
     } else {
       setOrg((p) => ({ ...p, [name]: value }));
+    }
+  }
+
+  function handleOrgBlur(e: React.FocusEvent<HTMLInputElement>) {
+    const { name, value } = e.target;
+    if (name === "email") {
+      if (value && !validateEmail(value)) {
+        setOrgErrors((e) => ({ ...e, email: "Correo inválido. Ej: contacto@organizacion.cl" }));
+      } else {
+        setOrgErrors((e) => ({ ...e, email: "" }));
+      }
     }
   }
 
@@ -86,13 +241,27 @@ export default function InscripcionPage() {
     field: keyof Member,
     value: string
   ) {
-    setMembers((prev) =>
-      prev.map((m, i) => {
-        if (i !== index) return m;
-        if (field === "rut") return { ...m, rut: formatRut(value) };
-        return { ...m, [field]: value };
-      })
-    );
+    setMembers((prev) => prev.map((m, i) => i !== index ? m : { ...m, [field]: value }));
+    setMemberErrors((prev) => {
+      const next = [...prev];
+      if (!next[index]) next[index] = {};
+      next[index] = { ...next[index], [field]: "" };
+      return next;
+    });
+  }
+
+  // Valida campo de miembro al perder el foco (blur).
+  // El RUT se valida en tiempo real vía handleMemberRutBodyChange/handleMemberRutDvChange.
+  function handleMemberBlur(index: number, field: keyof Member, value: string) {
+    if (field === "email") {
+      const error = value && !validateEmail(value) ? "Correo inválido. Ej: nombre@ejemplo.cl" : "";
+      setMemberErrors((prev) => {
+        const next = [...prev];
+        if (!next[index]) next[index] = {};
+        next[index] = { ...next[index], email: error };
+        return next;
+      });
+    }
   }
 
   function addMember() {
@@ -100,13 +269,24 @@ export default function InscripcionPage() {
       ...prev,
       { name: "", rut: "", role: "Director/a", email: "", phone: "", address: "" },
     ]);
+    setMemberErrors((prev) => [...prev, {}]);
   }
 
+  // Botón "Guardar borrador" — los datos ya se persisten automáticamente en
+  // localStorage vía useEffects; aquí solo mostramos confirmación visual.
+  function handleGuardar() {
+    setSavedToast(true);
+    setTimeout(() => setSavedToast(false), 3000);
+  }
+
+  // Elimina un miembro del directorio (mínimo 1 debe quedar)
   function removeMember(index: number) {
     if (members.length === 1) return;
     setMembers((prev) => prev.filter((_, i) => i !== index));
   }
 
+  // Envía la inscripción completa (org + miembros + datos bancarios) a la API.
+  // En caso de éxito limpia el borrador de localStorage y redirige al dashboard.
   async function handleSubmit() {
     setError("");
     setLoading(true);
@@ -123,13 +303,44 @@ export default function InscripcionPage() {
       if (!res.ok) {
         setError(data.error || "Error al guardar la inscripción");
       } else {
-        router.push("/dashboard");
+        // Limpiar borrador guardado y mostrar pantalla de éxito
+        localStorage.removeItem("inscripcion_org");
+        localStorage.removeItem("inscripcion_members");
+        localStorage.removeItem("inscripcion_step");
+        setSubmitted(true);
+        setTimeout(() => router.push("/dashboard"), 4000);
       }
     } catch {
       setError("Error de conexión. Inténtalo nuevamente.");
     } finally {
       setLoading(false);
     }
+  }
+
+  // Pantalla de éxito
+  if (submitted) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-20 flex flex-col items-center text-center">
+        <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center mb-6 animate-bounce">
+          <svg className="w-12 h-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h2 className="text-2xl font-bold text-gray-800 mb-3">
+          ¡Datos guardados con éxito!
+        </h2>
+        <p className="text-gray-500 mb-2">
+          Los datos de tu organización fueron registrados correctamente.
+        </p>
+        <p className="text-gray-400 text-sm mb-8">
+          Ahora debes subir los documentos requeridos desde tu panel. Cuando estén todos listos,
+          podrás enviar tu solicitud a revisión. Serás redirigido en unos segundos...
+        </p>
+        <div className="w-full bg-gray-100 rounded-full h-1.5">
+          <div className="bg-green-500 h-1.5 rounded-full animate-[progress_4s_linear_forwards]" style={{ animation: "width 4s linear forwards", width: "100%" }} />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -186,13 +397,25 @@ export default function InscripcionPage() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>RUT de la organización *</Label>
-                <Input
-                  name="rut"
-                  value={org.rut}
-                  onChange={handleOrgChange}
-                  placeholder="12.345.678-9"
-                  required
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={getRutBody(org.rut)}
+                    onChange={(e) => handleOrgRutBodyChange(e.target.value)}
+                    placeholder="Ej: 12.345.678"
+                    maxLength={11}
+                    className={orgErrors.rut ? "border-red-400 focus-visible:ring-red-400" : isRutValid(org.rut) ? "border-green-500 focus-visible:ring-green-500" : ""}
+                  />
+                  <span className="text-gray-500 font-semibold text-lg">-</span>
+                  <Input
+                    value={getRutDv(org.rut)}
+                    onChange={(e) => handleOrgRutDvChange(e.target.value)}
+                    placeholder="DV"
+                    maxLength={1}
+                    className={`w-16 text-center font-mono uppercase ${orgErrors.rut ? "border-red-400 focus-visible:ring-red-400" : isRutValid(org.rut) ? "border-green-500 focus-visible:ring-green-500" : ""}`}
+                  />
+                </div>
+                {orgErrors.rut && <p className="text-xs text-red-600 flex items-center gap-1"><span>⚠</span>{orgErrors.rut}</p>}
+                {!orgErrors.rut && isRutValid(org.rut) && <p className="text-xs text-green-600 flex items-center gap-1"><span>✓</span>RUT válido</p>}
               </div>
 
               <div className="space-y-2">
@@ -204,7 +427,7 @@ export default function InscripcionPage() {
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
                     {ORGANIZATION_TYPES.map((t) => (
                       <SelectItem key={t} value={t}>
                         {t}
@@ -238,12 +461,13 @@ export default function InscripcionPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Teléfono</Label>
+                <Label>Teléfono *</Label>
                 <Input
                   name="phone"
                   value={org.phone}
                   onChange={handleOrgChange}
                   placeholder="+56 9 1234 5678"
+                  required
                 />
               </div>
             </div>
@@ -252,12 +476,15 @@ export default function InscripcionPage() {
               <Label>Correo de la organización *</Label>
               <Input
                 name="email"
-                type="email"
                 value={org.email}
                 onChange={handleOrgChange}
+                onBlur={handleOrgBlur}
                 placeholder="contacto@miorganizacion.cl"
+                className={orgErrors.email ? "border-red-400 focus-visible:ring-red-400" : org.email && !orgErrors.email && validateEmail(org.email) ? "border-green-500 focus-visible:ring-green-500" : ""}
                 required
               />
+              {orgErrors.email && <p className="text-xs text-red-600 flex items-center gap-1"><span>⚠</span>{orgErrors.email}</p>}
+              {!orgErrors.email && org.email && validateEmail(org.email) && <p className="text-xs text-green-600 flex items-center gap-1"><span>✓</span>Correo válido</p>}
             </div>
 
             <div className="space-y-2">
@@ -270,19 +497,37 @@ export default function InscripcionPage() {
               />
             </div>
 
-            <div className="flex justify-end mt-4">
-              <Button
-                onClick={() => {
-                  if (!org.name || !org.rut || !org.type || !org.address || !org.commune || !org.email) {
-                    setError("Completa todos los campos obligatorios (*) antes de continuar.");
-                  } else {
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
+              <Button variant="outline" onClick={() => router.back()}>
+                Volver
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleGuardar} className="text-green-700 border-green-300 hover:bg-green-50">
+                  Guardar borrador
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!org.name || !org.rut || !org.type || !org.address || !org.commune || !org.phone || !org.email) {
+                      setError("Completa todos los campos obligatorios (*) antes de continuar.");
+                      return;
+                    }
+                    if (!isRutValid(org.rut)) {
+                      setError("El RUT de la organización no es válido.");
+                      setOrgErrors((e) => ({ ...e, rut: "RUT inválido" }));
+                      return;
+                    }
+                    if (!validateEmail(org.email)) {
+                      setError("El correo electrónico no tiene un formato válido.");
+                      setOrgErrors((e) => ({ ...e, email: "Correo inválido" }));
+                      return;
+                    }
                     setError("");
                     setStep(2);
-                  }
-                }}
-              >
-                Siguiente: Directorio
-              </Button>
+                  }}
+                >
+                  Siguiente: Directorio
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -301,6 +546,37 @@ export default function InscripcionPage() {
                 Ingresa los datos de todos los miembros del directorio (mínimo 1)
               </CardDescription>
             </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                <Label htmlFor="directorioVigencia">
+                  Vigencia del directorio *
+                </Label>
+                <Input
+                  id="directorioVigencia"
+                  type="date"
+                  name="directorioVigencia"
+                  value={org.directorioVigencia}
+                  onChange={handleOrgChange}
+                  min={new Date().toISOString().split("T")[0]}
+                  className={
+                    org.directorioVigencia
+                      ? new Date(org.directorioVigencia) < new Date()
+                        ? "border-red-400 focus-visible:ring-red-400"
+                        : "border-green-500 focus-visible:ring-green-500"
+                      : ""
+                  }
+                  aria-describedby="vigencia-ayuda"
+                />
+                <p id="vigencia-ayuda" className="text-xs text-gray-400">
+                  Fecha de vencimiento que figura en el Certificado de Directorio de Persona Jurídica (vigencia ≤ 60 días desde emisión).
+                </p>
+                {org.directorioVigencia && new Date(org.directorioVigencia) < new Date() && (
+                  <p className="text-xs text-red-600 flex items-center gap-1">
+                    <span>⚠</span> Esta fecha ya venció. Debes renovar el certificado de directorio.
+                  </p>
+                )}
+              </div>
+            </CardContent>
           </Card>
 
           {members.map((member, i) => (
@@ -335,12 +611,25 @@ export default function InscripcionPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>RUT *</Label>
-                    <Input
-                      value={member.rut}
-                      onChange={(e) => handleMemberChange(i, "rut", e.target.value)}
-                      placeholder="12.345.678-9"
-                      required
-                    />
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={getRutBody(member.rut)}
+                        onChange={(e) => handleMemberRutBodyChange(i, e.target.value)}
+                        placeholder="Ej: 12.345.678"
+                        maxLength={11}
+                        className={memberErrors[i]?.rut ? "border-red-400 focus-visible:ring-red-400" : isRutValid(member.rut) ? "border-green-500 focus-visible:ring-green-500" : ""}
+                      />
+                      <span className="text-gray-500 font-semibold text-lg">-</span>
+                      <Input
+                        value={getRutDv(member.rut)}
+                        onChange={(e) => handleMemberRutDvChange(i, e.target.value)}
+                        placeholder="DV"
+                        maxLength={1}
+                        className={`w-16 text-center font-mono uppercase ${memberErrors[i]?.rut ? "border-red-400 focus-visible:ring-red-400" : isRutValid(member.rut) ? "border-green-500 focus-visible:ring-green-500" : ""}`}
+                      />
+                    </div>
+                    {memberErrors[i]?.rut && <p className="text-xs text-red-600 flex items-center gap-1"><span>⚠</span>{memberErrors[i].rut}</p>}
+                    {!memberErrors[i]?.rut && isRutValid(member.rut) && <p className="text-xs text-green-600 flex items-center gap-1"><span>✓</span>RUT válido</p>}
                   </div>
                   <div className="space-y-2">
                     <Label>Cargo *</Label>
@@ -351,7 +640,7 @@ export default function InscripcionPage() {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
                         {DIRECTORY_ROLES.map((r) => (
                           <SelectItem key={r} value={r}>{r}</SelectItem>
                         ))}
@@ -361,27 +650,32 @@ export default function InscripcionPage() {
                   <div className="space-y-2">
                     <Label>Correo *</Label>
                     <Input
-                      type="email"
                       value={member.email}
                       onChange={(e) => handleMemberChange(i, "email", e.target.value)}
+                      onBlur={(e) => handleMemberBlur(i, "email", e.target.value)}
                       placeholder="correo@ejemplo.cl"
+                      className={memberErrors[i]?.email ? "border-red-400 focus-visible:ring-red-400" : member.email && !memberErrors[i]?.email && validateEmail(member.email) ? "border-green-500 focus-visible:ring-green-500" : ""}
                       required
                     />
+                    {memberErrors[i]?.email && <p className="text-xs text-red-600 flex items-center gap-1"><span>⚠</span>{memberErrors[i].email}</p>}
+                    {!memberErrors[i]?.email && member.email && validateEmail(member.email) && <p className="text-xs text-green-600 flex items-center gap-1"><span>✓</span>Correo válido</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label>Teléfono</Label>
+                    <Label>Teléfono *</Label>
                     <Input
                       value={member.phone}
                       onChange={(e) => handleMemberChange(i, "phone", e.target.value)}
                       placeholder="+56 9 1234 5678"
+                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Dirección</Label>
+                    <Label>Dirección *</Label>
                     <Input
                       value={member.address}
                       onChange={(e) => handleMemberChange(i, "address", e.target.value)}
                       placeholder="Calle y número"
+                      required
                     />
                   </div>
                 </div>
@@ -394,22 +688,41 @@ export default function InscripcionPage() {
             Agregar otro miembro
           </Button>
 
-          <div className="flex justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <Button variant="outline" onClick={() => setStep(1)}>
               Volver
             </Button>
-            <Button onClick={() => {
-              const invalid = members.some(m => !m.name || !m.rut || !m.role || !m.email);
-              if (invalid) {
-                setError("Completa los campos obligatorios de todos los miembros del directorio.");
-              } else {
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleGuardar} className="text-green-700 border-green-300 hover:bg-green-50">
+                Guardar borrador
+              </Button>
+              <Button onClick={() => {
+                const invalid = members.some(m => !m.name || !m.rut || !m.role || !m.email || !m.phone || !m.address);
+                if (invalid) {
+                  setError("Completa todos los campos obligatorios de todos los miembros del directorio.");
+                  return;
+                }
+                if (!org.directorioVigencia) {
+                  setError("Debes ingresar la fecha de vigencia del directorio.");
+                  return;
+                }
                 setError("");
                 setStep(3);
-              }
-            }}>
-              Siguiente: Datos Bancarios
-            </Button>
+              }}>
+                Siguiente: Datos Bancarios
+              </Button>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast de guardado */}
+      {savedToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-green-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 animate-bounce">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Borrador guardado. Puedes continuar más tarde.
         </div>
       )}
 
@@ -424,17 +737,18 @@ export default function InscripcionPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Nombre del banco</Label>
+              <Label>Nombre del banco *</Label>
               <Input
                 name="bankName"
                 value={org.bankName}
                 onChange={handleOrgChange}
                 placeholder="Banco Estado, BancoChile, etc."
+                required
               />
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Tipo de cuenta</Label>
+                <Label>Tipo de cuenta *</Label>
                 <Select
                   value={org.bankAccountType}
                   onValueChange={(v) => setOrg((p) => ({ ...p, bankAccountType: v }))}
@@ -442,7 +756,7 @@ export default function InscripcionPage() {
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
                     <SelectItem value="Cuenta Corriente">Cuenta Corriente</SelectItem>
                     <SelectItem value="Cuenta Vista">Cuenta Vista</SelectItem>
                     <SelectItem value="Cuenta de Ahorro">Cuenta de Ahorro</SelectItem>
@@ -451,12 +765,13 @@ export default function InscripcionPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Número de cuenta</Label>
+                <Label>Número de cuenta *</Label>
                 <Input
                   name="bankAccountNumber"
                   value={org.bankAccountNumber}
                   onChange={handleOrgChange}
                   placeholder="0000000000"
+                  required
                 />
               </div>
             </div>
@@ -466,20 +781,35 @@ export default function InscripcionPage() {
               como respaldo (certificado, captura de pantalla o libreta) en el paso de documentos.
             </p>
 
-            <div className="flex justify-between pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-4">
               <Button variant="outline" onClick={() => setStep(2)}>
                 Volver
               </Button>
-              <Button onClick={handleSubmit} disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Guardando...
-                  </>
-                ) : (
-                  "Guardar y continuar con documentos"
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleGuardar} className="text-green-700 border-green-300 hover:bg-green-50">
+                  Guardar borrador
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!org.bankName || !org.bankAccountType || !org.bankAccountNumber) {
+                      setError("Completa todos los datos bancarios (*) antes de continuar.");
+                      return;
+                    }
+                    setError("");
+                    handleSubmit();
+                  }}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Guardando...
+                    </>
+                  ) : (
+                    "Guardar y continuar"
+                  )}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -25,6 +25,7 @@
     "@radix-ui/react-toast": "^1.2.2",
     "@types/nodemailer": "^8.0.1",
     "bcryptjs": "^2.4.3",
+    "bwip-js": "^4.5.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.462.0",

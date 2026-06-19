@@ -12,30 +12,17 @@ import {
   List,
   Menu,
   X,
+  ShieldCheck,
 } from "lucide-react";
 
 export function Navbar() {
   const { data: session } = useSession();
-  const isAdmin = (session?.user as any)?.role === "ADMIN";
+  const role = (session?.user as any)?.role;
+  const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <header className="shadow-md relative z-50">
-      {/* Franja superior — oculta en móvil */}
-      <div className="bg-[#0f3d1a] text-white/80 text-xs py-1.5 hidden sm:block">
-        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
-          <span>Región de Aysén del General Carlos Ibáñez del Campo — Chile</span>
-          <a
-            href="https://coyhaique.cl"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-white transition-colors"
-          >
-            www.coyhaique.cl
-          </a>
-        </div>
-      </div>
-
       {/* Navbar principal */}
       <div className="bg-primary text-white">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -58,11 +45,17 @@ export function Navbar() {
           </Link>
 
           {/* Navegación desktop */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1" aria-label="Navegación principal">
             <Link href="/organizaciones">
               <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 text-xs">
-                <List className="h-3.5 w-3.5 mr-1" />
+                <List className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
                 Organizaciones
+              </Button>
+            </Link>
+            <Link href="/verificar">
+              <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 text-xs">
+                <ShieldCheck className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+                Verificar certificado
               </Button>
             </Link>
 
@@ -70,12 +63,12 @@ export function Navbar() {
               <>
                 <Link href={isAdmin ? "/admin" : "/dashboard"}>
                   <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 text-xs">
-                    <LayoutDashboard className="h-3.5 w-3.5 mr-1" />
+                    <LayoutDashboard className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
                     {isAdmin ? "Panel Admin" : "Mi Inscripción"}
                   </Button>
                 </Link>
                 <div className="flex items-center gap-2 ml-2 pl-2 border-l border-white/30">
-                  <User className="h-3.5 w-3.5 text-white/60" />
+                  <User className="h-3.5 w-3.5 text-white/60" aria-hidden="true" />
                   <span className="text-xs text-white/80 max-w-[120px] truncate">
                     {session.user?.name}
                   </span>
@@ -84,9 +77,10 @@ export function Navbar() {
                     size="sm"
                     className="text-white/70 hover:text-white hover:bg-white/20 h-7 w-7 p-0"
                     title="Cerrar sesión"
-                    onClick={() => signOut({ callbackUrl: "/" })}
+                    aria-label="Cerrar sesión"
+                    onClick={() => signOut({ callbackUrl: window.location.origin })}
                   >
-                    <LogOut className="h-3.5 w-3.5" />
+                    <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
                 </div>
               </>
@@ -111,21 +105,29 @@ export function Navbar() {
           <button
             className="md:hidden text-white p-1.5 rounded-md hover:bg-white/20 transition-colors"
             onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Menú"
+            aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
+            aria-expanded={menuOpen}
+            aria-controls="menu-movil"
           >
-            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {menuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
           </button>
         </div>
       </div>
 
       {/* Menú móvil desplegable */}
       {menuOpen && (
-        <div className="md:hidden bg-[#0f3d1a] border-t border-white/10 shadow-lg">
-          <nav className="flex flex-col px-4 py-3 gap-1">
+        <div id="menu-movil" className="md:hidden bg-[#0f3d1a] border-t border-white/10 shadow-lg">
+          <nav className="flex flex-col px-4 py-3 gap-1" aria-label="Menú de navegación móvil">
             <Link href="/organizaciones" onClick={() => setMenuOpen(false)}>
               <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/15 text-sm">
-                <List className="h-4 w-4 mr-2" />
+                <List className="h-4 w-4 mr-2" aria-hidden="true" />
                 Organizaciones Inscritas
+              </Button>
+            </Link>
+            <Link href="/verificar" onClick={() => setMenuOpen(false)}>
+              <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/15 text-sm">
+                <ShieldCheck className="h-4 w-4 mr-2" aria-hidden="true" />
+                Verificar certificado
               </Button>
             </Link>
 
@@ -133,13 +135,13 @@ export function Navbar() {
               <>
                 <Link href={isAdmin ? "/admin" : "/dashboard"} onClick={() => setMenuOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/15 text-sm">
-                    <LayoutDashboard className="h-4 w-4 mr-2" />
+                    <LayoutDashboard className="h-4 w-4 mr-2" aria-hidden="true" />
                     {isAdmin ? "Panel Administrador" : "Mi Inscripción"}
                   </Button>
                 </Link>
                 <div className="border-t border-white/10 pt-2 mt-1 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-white/50" />
+                    <User className="h-4 w-4 text-white/50" aria-hidden="true" />
                     <span className="text-xs text-white/70 truncate max-w-[180px]">
                       {session.user?.name}
                     </span>
@@ -148,9 +150,10 @@ export function Navbar() {
                     variant="ghost"
                     size="sm"
                     className="text-white/60 hover:text-white hover:bg-white/15 text-xs"
-                    onClick={() => { setMenuOpen(false); signOut({ callbackUrl: "/" }); }}
+                    aria-label="Cerrar sesión"
+                    onClick={() => { setMenuOpen(false); signOut({ callbackUrl: window.location.origin }); }}
                   >
-                    <LogOut className="h-3.5 w-3.5 mr-1" />
+                    <LogOut className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
                     Salir
                   </Button>
                 </div>
@@ -165,7 +168,7 @@ export function Navbar() {
                 <Link href="/registro" onClick={() => setMenuOpen(false)}>
                   <Button className="w-full bg-white text-primary hover:bg-white/90 font-semibold text-sm mt-1">
                     Inscribir Organización
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                    <ChevronRight className="h-4 w-4 ml-1" aria-hidden="true" />
                   </Button>
                 </Link>
               </>

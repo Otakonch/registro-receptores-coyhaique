@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { signIn, getSession, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -10,12 +10,24 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Loader2, LogIn } from "lucide-react";
 
+function getDestination(role?: string | null) {
+  return role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+}
+
 export default function LoginPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Si ya tiene sesión activa, redirigir de inmediato
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.replace(getDestination((session?.user as any)?.role));
+    }
+  }, [status, session, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,23 +43,26 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError("Correo o contraseña incorrectos");
+        setLoading(false);
       } else {
-        // Redirigir según el rol
-        const res = await fetch("/api/auth/session");
-        const session = await res.json();
-        const role = session?.user?.role;
-
-        if (role === "ADMIN") {
-          router.push("/admin");
-        } else {
-          router.push("/dashboard");
-        }
+        // getSession() lee el JWT recién emitido; window.location fuerza recarga completa
+        const s = await getSession();
+        const role = (s?.user as any)?.role;
+        window.location.href = getDestination(role);
       }
     } catch {
       setError("Ocurrió un error. Inténtalo nuevamente.");
-    } finally {
       setLoading(false);
     }
+  }
+
+  // Mientras verifica la sesión o redirige, mostrar spinner
+  if (status === "loading" || status === "authenticated") {
+    return (
+      <div className="flex items-center justify-center min-h-[80vh]">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
   }
 
   return (

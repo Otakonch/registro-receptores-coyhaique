@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ============================================================
@@ -56,6 +57,9 @@ model Organization {
   bankName          String?   // Nombre del banco
   bankAccountType   String?   // Tipo de cuenta
   bankAccountNumber String?   // Número de cuenta
+
+  // Vigencia del directorio (fecha de vencimiento del certificado de directorio)
+  directorioVigencia DateTime? // Fecha límite de vigencia del directorio
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -165,11 +169,31 @@ model VerificationToken {
 }
 
 // ============================================================
+// HISTORIAL DE ACCIONES DE ADMINISTRADOR
+// ============================================================
+model AdminLog {
+  id             String   @id @default(cuid())
+  adminId        String               // ID del admin que realizó la acción
+  adminName      String               // Nombre del admin
+  adminEmail     String               // Email del admin
+  action         String               // "APROBADA" | "RECHAZADA" | "ELIMINADA" | "MODIFICADA"
+  orgName        String               // Nombre de la organización afectada
+  orgRut         String?              // RUT de la organización
+  registrationId String?              // ID de la inscripción (null si fue eliminada)
+  details        String?              // Detalle extra (ej: observaciones al rechazar)
+  createdAt      DateTime @default(now())
+
+  @@index([adminId])
+  @@index([createdAt])
+}
+
+// ============================================================
 // ENUMERACIONES
 // ============================================================
 enum Role {
-  USER  // Representante legal / usuario normal
-  ADMIN // Funcionario municipal que valida
+  USER        // Representante legal / usuario normal
+  ADMIN       // Funcionario municipal que valida inscripciones
+  SUPER_ADMIN // Administrador de sistema — gestiona roles y usuarios
 }
 
 enum RegistrationStatus {

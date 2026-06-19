@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { hasAdminAccess } from "@/lib/roles";
 
 // GET - Obtener inscripción por ID
 export async function GET(
@@ -37,7 +38,7 @@ export async function GET(
     }
 
     const userId = (session.user as any).id;
-    const isAdmin = (session.user as any).role === "ADMIN";
+    const isAdmin = hasAdminAccess((session.user as any).role);
 
     // Solo el dueño o un admin puede ver la inscripción
     if (!isAdmin && registration.organization.legalRepId !== userId) {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,16 @@ import { Captcha } from "@/components/captcha";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [captchaOk, setCaptchaOk] = useState(false);
+
+  // Redirigir si ya tiene sesión activa
+  useEffect(() => {
+    if (status === "authenticated") {
+      const role = (session?.user as any)?.role;
+      router.replace(role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
+    }
+  }, [status, session, router]);
   const [form, setForm] = useState({
     name: "",
     email: "",

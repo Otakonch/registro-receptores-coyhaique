@@ -2,17 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-const ALLOWED_TYPES = [
-  "application/pdf",
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-];
+// Solo se aceptan PDF — documentos oficiales deben estar en ese formato
+const ALLOWED_TYPES = ["application/pdf"];
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,7 +42,7 @@ export async function POST(req: NextRequest) {
     // Validar tipo
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: "Solo se permiten archivos PDF, JPG o PNG" },
+        { error: "Solo se permiten archivos en formato PDF" },
         { status: 400 }
       );
     }
@@ -67,6 +62,14 @@ export async function POST(req: NextRequest) {
 
     if (registration.organization.legalRepId !== userId) {
       return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
+    }
+
+    // No se pueden modificar documentos mientras la inscripción está en revisión o aprobada
+    if (registration.status === "PENDING" || registration.status === "APPROVED") {
+      return NextResponse.json(
+        { error: "No puedes modificar documentos mientras la inscripción está en revisión o aprobada." },
+        { status: 400 }
+      );
     }
 
     // Crear directorio de uploads si no existe
@@ -95,7 +98,11 @@ export async function POST(req: NextRequest) {
 
     if (existing) {
       await db.document.delete({ where: { id: existing.id } });
-      // Opcionalmente eliminar el archivo físico anterior
+      // Eliminar el archivo físico anterior para no acumular archivos huérfanos
+      try {
+        const oldPath = path.join(process.cwd(), "public", existing.filePath);
+        await unlink(oldPath);
+      } catch { /* si no existe el archivo físico, no es crítico */ }
     }
 
     // Guardar referencia en la base de datos

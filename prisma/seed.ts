@@ -17,7 +17,7 @@ async function main() {
       password: hashedPassword,
       name: "Administrador Sistema",
       rut: "00.000.000-0",
-      role: "ADMIN",
+      role: "SUPER_ADMIN",
     },
   });
 
