@@ -39,6 +39,7 @@ prisma/dev.db-journal
 
 # Archivos de instalación Windows (no necesarios en el repo)
 *.bat
+*.ps1
 db_log.txt
 instalar_log.txt
 npm_log.txt
