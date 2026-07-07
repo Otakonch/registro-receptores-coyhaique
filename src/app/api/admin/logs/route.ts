@@ -4,17 +4,13 @@
  * Solo accesible por admins.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession }          from "next-auth";
-import { authOptions }               from "@/lib/auth";
-import { db }                        from "@/lib/db";
-import { hasAdminAccess }            from "@/lib/roles";
+import { requireAdmin } from "@/lib/api-auth";
+import { db } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || !hasAdminAccess((session.user as any).role)) {
-      return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
-    }
+    const { response } = await requireAdmin(req);
+    if (response) return response;
 
     // Parámetro opcional: cuántos registros traer (por defecto 200)
     const url    = new URL(req.url);

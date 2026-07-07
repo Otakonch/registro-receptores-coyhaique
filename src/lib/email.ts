@@ -1,17 +1,23 @@
-import nodemailer from "nodemailer";
+import {
+  createSmtpTransporter,
+  getSmtpConfigFromEnv,
+  getSmtpFromAddress,
+  validateSmtpConfig,
+} from "@/lib/smtp-config";
 
-// Configura estas variables en .env.local
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST ?? "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT ?? "587"),
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+function getTransporter() {
+  const validation = validateSmtpConfig();
+  if (!validation.valid || !validation.config) {
+    throw new Error(validation.errors.join(" "));
+  }
 
-const FROM = `"Municipalidad de Coyhaique" <${process.env.SMTP_USER ?? "noreply@coyhaique.cl"}>`;
+  return createSmtpTransporter(validation.config);
+}
+
+function getFromAddress() {
+  const config = getSmtpConfigFromEnv();
+  return getSmtpFromAddress(config.user || "noreply@coyhaique.cl");
+}
 
 // Estilos comunes del correo
 function htmlWrapper(title: string, content: string) {
@@ -74,8 +80,8 @@ export async function enviarCorreoBienvenida(nombre: string, email: string) {
       </a>
     </p>`;
 
-  await transporter.sendMail({
-    from: FROM,
+  await getTransporter().sendMail({
+    from: getFromAddress(),
     to: email,
     subject: "Cuenta creada — Registro de Receptores · Municipalidad de Coyhaique",
     html: htmlWrapper("¡Bienvenido/a al Registro!", content),
@@ -96,8 +102,8 @@ export async function enviarCorreoEnviado(nombre: string, email: string, orgNomb
       <p style="color:#3b82f6;font-size:12px;margin:4px 0 0;">Te notificaremos el resultado a este correo.</p>
     </div>`;
 
-  await transporter.sendMail({
-    from: FROM,
+  await getTransporter().sendMail({
+    from: getFromAddress(),
     to: email,
     subject: `Solicitud recibida — ${orgNombre} · Municipalidad de Coyhaique`,
     html: htmlWrapper("Solicitud en Revisión", content),
@@ -125,8 +131,8 @@ export async function enviarCorreoAprobado(nombre: string, email: string, orgNom
       </a>
     </p>`;
 
-  await transporter.sendMail({
-    from: FROM,
+  await getTransporter().sendMail({
+    from: getFromAddress(),
     to: email,
     subject: `✅ Inscripción aprobada — ${orgNombre}`,
     html: htmlWrapper("Inscripción Aprobada", content),
@@ -162,10 +168,58 @@ export async function enviarCorreoRechazado(
       </a>
     </p>`;
 
-  await transporter.sendMail({
-    from: FROM,
+  await getTransporter().sendMail({
+    from: getFromAddress(),
     to: email,
     subject: `Resultado de inscripción — ${orgNombre}`,
     html: htmlWrapper("Resultado de Inscripción", content),
+  });
+}
+
+// 5. Verificación de correo al registrarse
+export async function enviarCorreoVerificacion(nombre: string, email: string, verifyUrl: string) {
+  const content = `
+    <p style="color:#374151;font-size:15px;">Estimado/a <strong>${nombre}</strong>,</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6;">
+      Gracias por registrarte. Para activar tu cuenta, confirma tu correo electrónico haciendo clic en el botón siguiente.
+      El enlace es válido por 24 horas.
+    </p>
+    <p style="text-align:center;margin:28px 0 0;">
+      <a href="${verifyUrl}"
+         style="background:#1d6b33;color:#fff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:700;display:inline-block;">
+        Verificar mi correo
+      </a>
+    </p>
+    <p style="color:#6b7280;font-size:12px;margin-top:20px;">Si no creaste esta cuenta, ignora este mensaje.</p>`;
+
+  await getTransporter().sendMail({
+    from: getFromAddress(),
+    to: email,
+    subject: "Confirma tu correo — Registro de Receptores · Municipalidad de Coyhaique",
+    html: htmlWrapper("Verificación de correo", content),
+  });
+}
+
+// 6. Recuperación de contraseña
+export async function enviarCorreoRecuperacion(nombre: string, email: string, resetUrl: string) {
+  const content = `
+    <p style="color:#374151;font-size:15px;">Estimado/a <strong>${nombre}</strong>,</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6;">
+      Recibimos una solicitud para restablecer la contraseña de tu cuenta. Si fuiste tú, usa el botón siguiente.
+      El enlace expira en 1 hora.
+    </p>
+    <p style="text-align:center;margin:28px 0 0;">
+      <a href="${resetUrl}"
+         style="background:#0f3d1a;color:#fff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:700;display:inline-block;">
+        Restablecer contraseña
+      </a>
+    </p>
+    <p style="color:#6b7280;font-size:12px;margin-top:20px;">Si no solicitaste este cambio, ignora este correo.</p>`;
+
+  await getTransporter().sendMail({
+    from: getFromAddress(),
+    to: email,
+    subject: "Recuperar contraseña — Registro de Receptores · Municipalidad de Coyhaique",
+    html: htmlWrapper("Recuperación de contraseña", content),
   });
 }

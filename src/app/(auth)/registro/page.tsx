@@ -91,7 +91,6 @@ export default function RegisterPage() {
         setError(data.error || "Error al registrar usuario");
       } else {
         setSuccess(true);
-        setTimeout(() => router.push("/login"), 2000);
       }
     } catch {
       setError("Ocurrió un error. Inténtalo nuevamente.");
@@ -107,9 +106,14 @@ export default function RegisterPage() {
           <CardContent className="py-12">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-800 mb-2">
-              ¡Cuenta creada exitosamente!
+              ¡Cuenta creada!
             </h2>
-            <p className="text-gray-500">Redirigiendo al inicio de sesión...</p>
+            <p className="text-gray-500">
+              Revisa tu correo y haz clic en el enlace de verificación antes de iniciar sesión.
+            </p>
+            <Link href="/login" className="text-primary text-sm font-medium hover:underline mt-4 inline-block">
+              Ir al inicio de sesión
+            </Link>
           </CardContent>
         </Card>
       </div>

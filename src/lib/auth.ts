@@ -9,7 +9,7 @@ import { rateLimit } from "./rateLimit";
 const RECHECK_INTERVAL = 15 * 60 * 1000; // 15 minutos
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(db) as any,
+  adapter: PrismaAdapter(db as Parameters<typeof PrismaAdapter>[0]),
 
   providers: [
     CredentialsProvider({
@@ -36,6 +36,10 @@ export const authOptions: NextAuthOptions = {
         // Mismo mensaje para email y contraseña incorrectos — evita enumeración
         if (!user || !(await bcrypt.compare(credentials.password, user.password))) {
           throw new Error("Correo o contraseña incorrectos");
+        }
+
+        if (!user.emailVerified && user.role === "USER") {
+          throw new Error("Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada.");
         }
 
         return { id: user.id, email: user.email, name: user.name, role: user.role };

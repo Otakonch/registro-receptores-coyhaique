@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { z } from "zod";
-import { enviarCorreoBienvenida } from "@/lib/email";
 import { rateLimit, getClientIp } from "@/lib/rateLimit";
+import { createVerificationToken, buildAuthUrl } from "@/lib/verification";
+import { enviarCorreoVerificacion } from "@/lib/email";
 
 const registerSchema = z.object({
   name:     z.string().min(3,  "El nombre debe tener al menos 3 caracteres"),
@@ -14,7 +15,6 @@ const registerSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  // Máximo 5 registros por IP en una ventana de 15 minutos
   const ip = getClientIp(req);
   if (!rateLimit(`register:${ip}`, 5, 15 * 60 * 1000)) {
     return NextResponse.json(
@@ -26,10 +26,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const data = registerSchema.parse(body);
+    const email = data.email.toLowerCase().trim();
 
-    const existingEmail = await db.user.findUnique({
-      where: { email: data.email.toLowerCase() },
-    });
+    const existingEmail = await db.user.findUnique({ where: { email } });
     if (existingEmail) {
       return NextResponse.json(
         { error: "Este correo electrónico ya está registrado" },
@@ -50,7 +49,7 @@ export async function POST(req: NextRequest) {
     const user = await db.user.create({
       data: {
         name:     data.name,
-        email:    data.email.toLowerCase(),
+        email,
         rut:      data.rut,
         phone:    data.phone,
         password: hashedPassword,
@@ -59,12 +58,18 @@ export async function POST(req: NextRequest) {
       select: { id: true, name: true, email: true, role: true },
     });
 
-    enviarCorreoBienvenida(user.name!, user.email!).catch((e) =>
-      console.error("Error correo bienvenida:", e)
+    const { token } = await createVerificationToken("email-verify", email);
+    const verifyUrl = buildAuthUrl("/verificar-correo", token);
+
+    enviarCorreoVerificacion(user.name!, user.email!, verifyUrl).catch((e) =>
+      console.error("Error correo verificación:", e)
     );
 
     return NextResponse.json(
-      { message: "Usuario registrado exitosamente", user },
+      {
+        message: "Usuario registrado. Revisa tu correo para verificar la cuenta antes de iniciar sesión.",
+        user,
+      },
       { status: 201 }
     );
   } catch (error) {

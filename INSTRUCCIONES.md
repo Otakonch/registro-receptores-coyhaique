@@ -33,9 +33,12 @@
 2. Abre `.env.local` y completa **todos** los valores:
 
 ```
-# Base de datos
-DATABASE_URL="postgresql://postgres:TU_CONTRASEÑA@localhost:5432/registro_coyhaique"
-DIRECT_URL="postgresql://postgres:TU_CONTRASEÑA@localhost:5432/registro_coyhaique"
+# Base de datos (PostgreSQL)
+PG_HOST=localhost
+PG_PORT=5432
+PG_DATABASE=registro_coyhaique
+PG_USER=postgres
+PG_PASSWORD=TU_CONTRASEÑA
 
 # Autenticación — genera un secreto en: https://generate-secret.vercel.app/32
 NEXTAUTH_SECRET="pega_aqui_el_secreto_generado"
@@ -45,16 +48,28 @@ NEXTAUTH_SECRET="pega_aqui_el_secreto_generado"
 NEXTAUTH_URL="http://localhost:3000"
 
 # Correo saliente (SMTP)
-SMTP_HOST="smtp.gmail.com"
-SMTP_PORT="587"
-SMTP_SECURE="false"
-SMTP_USER="correo@municipalidadcoyhaique.cl"
-SMTP_PASS="contraseña_o_app_password"
+# Casilla Outlook sin clave → relay interno municipal
+SMTP_HOST=mail.coyhaique.cl
+SMTP_PORT=25
+SMTP_SECURE=false
+SMTP_AUTH=false
+SMTP_USER=no-reply@coyhaique.cl
+SMTP_PASS=
 ```
 
-> **Nota SMTP con Gmail:** Si usas Gmail, debes generar una "Contraseña de aplicación" en
-> Configuración de tu cuenta → Seguridad → Verificación en dos pasos → Contraseñas de aplicación.
-> No uses tu contraseña normal de Gmail.
+> **`no-reply@coyhaique.cl` sin contraseña:** La casilla es de Outlook, pero el envío no va por `smtp-mail.outlook.com` (eso siempre exige clave). Se usa el **relay SMTP interno** de TI (`mail.coyhaique.cl`, puerto `25`, `SMTP_AUTH=false`). `SMTP_USER` es solo el remitente que verá el destinatario.
+
+> **Si TI indica otro servidor relay**, cambia solo `SMTP_HOST` y `SMTP_PORT`.
+
+> **Outlook con contraseña** (solo si TI lo exige): `SMTP_HOST=smtp.office365.com`, puerto `587`, `SMTP_AUTH=true`, `SMTP_PASS=...`.
+### Validar el correo SMTP
+
+Edita las variables SMTP en `.env` y prueba desde terminal:
+
+```bash
+npm run smtp:test
+npm run smtp:send -- tu@correo.cl
+```
 
 ---
 

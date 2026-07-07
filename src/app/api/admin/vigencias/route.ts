@@ -1,16 +1,12 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/api-auth";
 import { db } from "@/lib/db";
-import { hasAdminAccess } from "@/lib/roles";
 
 // GET — Organizaciones aprobadas con directorio próximo a vencer (≤ 60 días) o ya vencido
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || !hasAdminAccess((session.user as any).role)) {
-      return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
-    }
+    const { response } = await requireAdmin(req);
+    if (response) return response;
 
     const hoy = new Date();
     const en60dias = new Date();

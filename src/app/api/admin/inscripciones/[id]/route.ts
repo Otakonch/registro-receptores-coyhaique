@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAdmin } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { createAdminLog } from "@/lib/adminLog";
-import { hasAdminAccess } from "@/lib/roles";
 import { rm } from "fs/promises";
 import path from "path";
 
@@ -52,17 +50,16 @@ const editSchema = z.object({
 // PATCH — Admin edita datos de organización, representante y/o directorio
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || !hasAdminAccess((session.user as any).role)) {
-      return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
-    }
+    const { id } = await params;
+    const { user: admin, response } = await requireAdmin(req);
+    if (response) return response;
 
     // Buscar la inscripción para obtener el organizationId y legalRepId
     const registration = await db.registration.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         organization: {
           include: { legalRep: true, members: true },
@@ -137,7 +134,7 @@ export async function PATCH(
 
     // Devolver la inscripción actualizada
     const updated = await db.registration.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         organization: {
           include: {
@@ -151,13 +148,13 @@ export async function PATCH(
 
     // Registrar acción en el log de administrador
     await createAdminLog({
-      adminId:        (session.user as any).id,
-      adminName:      session.user.name  ?? "Admin",
-      adminEmail:     session.user.email ?? "",
+      adminId:        admin!.id,
+      adminName:      admin!.name ?? "Admin",
+      adminEmail:     admin!.email,
       action:         "MODIFICADA",
       orgName:        registration.organization.name,
       orgRut:         registration.organization.rut,
-      registrationId: params.id,
+      registrationId: id,
       details:        "Datos editados por administrador",
     });
 
@@ -180,17 +177,16 @@ export async function PATCH(
 // DELETE — Admin elimina una inscripción completa (organización + documentos + registro)
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || !hasAdminAccess((session.user as any).role)) {
-      return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
-    }
+    const { id } = await params;
+    const { user: admin, response } = await requireAdmin(req);
+    if (response) return response;
 
     // Obtener datos antes de eliminar (para el log)
     const registration = await db.registration.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { organization: true },
     });
 
@@ -207,15 +203,15 @@ export async function DELETE(
 
     // Eliminar archivos físicos de la inscripción
     try {
-      const uploadsDir = path.join(process.cwd(), "public", "uploads", params.id);
+      const uploadsDir = path.join(process.cwd(), "public", "uploads", id);
       await rm(uploadsDir, { recursive: true, force: true });
     } catch { /* no es crítico si la carpeta no existía */ }
 
     // Registrar eliminación en el log
     await createAdminLog({
-      adminId:        (session.user as any).id,
-      adminName:      session.user.name  ?? "Admin",
-      adminEmail:     session.user.email ?? "",
+      adminId:        admin!.id,
+      adminName:      admin!.name ?? "Admin",
+      adminEmail:     admin!.email,
       action:         "ELIMINADA",
       orgName,
       orgRut,

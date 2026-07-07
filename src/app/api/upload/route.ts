@@ -1,23 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
+import { validatePdfFile } from "@/lib/pdf-validation";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-// Solo se aceptan PDF — documentos oficiales deben estar en ese formato
 const ALLOWED_TYPES = ["application/pdf"];
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const { user, response } = await requireAuth(req);
+    if (response) return response;
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    const userId = (session.user as any).id;
+    const userId = user!.id;
 
     const formData = await req.formData();
     const file = formData.get("file") as File;
@@ -39,12 +35,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validar tipo
+    // Validar tipo MIME declarado
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
         { error: "Solo se permiten archivos en formato PDF" },
         { status: 400 }
       );
+    }
+
+    // Validación profunda del PDF (magic bytes, estructura, páginas)
+    const pdfCheck = await validatePdfFile(file);
+    if (!pdfCheck.valid) {
+      return NextResponse.json({ error: pdfCheck.error }, { status: 400 });
     }
 
     // Verificar que la inscripción pertenece al usuario
@@ -82,7 +84,7 @@ export async function POST(req: NextRequest) {
     await mkdir(uploadDir, { recursive: true });
 
     // Generar nombre único para el archivo
-    const ext = path.extname(file.name);
+    const ext = ".pdf";
     const fileName = `${documentType}_${Date.now()}${ext}`;
     const filePath = path.join(uploadDir, fileName);
     const publicPath = `/uploads/${registrationId}/${fileName}`;

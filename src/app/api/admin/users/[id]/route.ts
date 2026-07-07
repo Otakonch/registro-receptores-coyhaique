@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireSuperAdmin } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { createAdminLog } from "@/lib/adminLog";
-import { isSuperAdmin } from "@/lib/roles";
 
 const patchSchema = z.object({
   role:           z.enum(["USER", "ADMIN"]).optional(),
@@ -17,14 +15,13 @@ const patchSchema = z.object({
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !isSuperAdmin((session.user as any).role)) {
-    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
-  }
+  const { id } = await params;
+  const { user: admin, response } = await requireSuperAdmin(req);
+  if (response) return response;
 
-  if (params.id === (session.user as any).id) {
+  if (id === admin!.id) {
     return NextResponse.json(
       { error: "No puedes modificar tu propio usuario desde aquí" },
       { status: 400 }
@@ -46,7 +43,7 @@ export async function PATCH(
   const { role, name, email, rut, phone, organizationId } = parsed.data;
 
   const target = await db.user.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { id: true, name: true, email: true, role: true },
   });
   if (!target) {
@@ -83,12 +80,12 @@ export async function PATCH(
   // Si no hay nada que actualizar en el usuario, saltamos el UPDATE
   const updated = Object.keys(updateData).length > 0
     ? await db.user.update({
-        where: { id: params.id },
+        where: { id },
         data:  updateData,
         select: { id: true, name: true, email: true, rut: true, phone: true, role: true },
       })
     : await db.user.findUnique({
-        where: { id: params.id },
+        where: { id },
         select: { id: true, name: true, email: true, rut: true, phone: true, role: true },
       });
 
@@ -96,7 +93,7 @@ export async function PATCH(
   if (organizationId) {
     await db.organization.update({
       where: { id: organizationId },
-      data:  { legalRepId: params.id },
+      data:  { legalRepId: id },
     });
   }
 
@@ -107,9 +104,9 @@ export async function PATCH(
   if (organizationId) changes.push(`org reasignada: ${organizationId}`);
 
   await createAdminLog({
-    adminId:        (session.user as any).id,
-    adminName:      session.user.name  ?? "Admin",
-    adminEmail:     session.user.email ?? "",
+    adminId:        admin!.id,
+    adminName:      admin!.name ?? "Admin",
+    adminEmail:     admin!.email,
     action:         "MODIFICADA",
     orgName:        target.name,
     orgRut:         null,
@@ -121,15 +118,14 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !isSuperAdmin((session.user as any).role)) {
-    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
-  }
+  const { id } = await params;
+  const { user: admin, response } = await requireSuperAdmin(req);
+  if (response) return response;
 
-  if (params.id === (session.user as any).id) {
+  if (id === admin!.id) {
     return NextResponse.json(
       { error: "No puedes eliminar tu propia cuenta" },
       { status: 400 }
@@ -137,7 +133,7 @@ export async function DELETE(
   }
 
   const target = await db.user.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { id: true, name: true, email: true, role: true },
   });
   if (!target) {
@@ -151,12 +147,12 @@ export async function DELETE(
     );
   }
 
-  await db.user.delete({ where: { id: params.id } });
+  await db.user.delete({ where: { id } });
 
   await createAdminLog({
-    adminId:        (session.user as any).id,
-    adminName:      session.user.name  ?? "Admin",
-    adminEmail:     session.user.email ?? "",
+    adminId:        admin!.id,
+    adminName:      admin!.name ?? "Admin",
+    adminEmail:     admin!.email,
     action:         "ELIMINADA",
     orgName:        target.name,
     orgRut:         null,

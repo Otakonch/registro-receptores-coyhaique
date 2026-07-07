@@ -463,7 +463,10 @@ export default function AdminPage() {
       {/* Filtros + buscador + exportar */}
       <div className="flex flex-wrap gap-3 mb-6">
         <div className="flex gap-2 flex-wrap">
-          {STATUS_FILTERS.filter((f) => f.key !== "USUARIOS" || isSA).map((f) => (
+          {STATUS_FILTERS.filter((f) => {
+            if (f.key === "USUARIOS") return isSA;
+            return true;
+          }).map((f) => (
             <Button
               key={f.key}
               variant={statusFilter === f.key ? "default" : "outline"}

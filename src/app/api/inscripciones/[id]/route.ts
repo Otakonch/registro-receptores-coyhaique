@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { hasAdminAccess } from "@/lib/roles";
 
 // GET - Obtener inscripción por ID
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const { id } = await params;
+    const { user, response } = await requireAuth(req);
+    if (response) return response;
 
     const registration = await db.registration.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         organization: {
           include: {
@@ -37,8 +35,8 @@ export async function GET(
       );
     }
 
-    const userId = (session.user as any).id;
-    const isAdmin = hasAdminAccess((session.user as any).role);
+    const userId = user!.id;
+    const isAdmin = hasAdminAccess(user!.role);
 
     // Solo el dueño o un admin puede ver la inscripción
     if (!isAdmin && registration.organization.legalRepId !== userId) {

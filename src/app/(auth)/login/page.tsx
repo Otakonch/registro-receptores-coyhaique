@@ -42,7 +42,9 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError("Correo o contraseña incorrectos");
+        setError(result.error === "CredentialsSignin" 
+          ? "Correo o contraseña incorrectos" 
+          : result.error);
         setLoading(false);
       } else {
         // getSession() lee el JWT recién emitido; window.location fuerza recarga completa
@@ -108,7 +110,12 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Contraseña</Label>
+                <Link href="/olvide-contrasena" className="text-xs text-primary hover:underline">
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -135,11 +142,19 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-gray-500">
-            ¿No tienes cuenta?{" "}
-            <Link href="/registro" className="text-primary font-medium hover:underline">
-              Regístrate aquí
-            </Link>
+          <div className="mt-6 text-center text-sm text-gray-500 space-y-2">
+            <p>
+              ¿No tienes cuenta?{" "}
+              <Link href="/registro" className="text-primary font-medium hover:underline">
+                Regístrate aquí
+              </Link>
+            </p>
+            <p>
+              ¿No recibiste el correo de verificación?{" "}
+              <Link href="/reenviar-verificacion" className="text-primary font-medium hover:underline">
+                Reenviar enlace
+              </Link>
+            </p>
           </div>
         </CardContent>
       </Card>

@@ -153,9 +153,6 @@ function VerificarContent() {
               </div>
 
               <div className="border-t border-green-100 pt-3">
-                <p className="text-xs text-gray-400">
-                  Código de verificación: <span className="font-mono">{result.registrationId}</span>
-                </p>
                 <p className="text-xs text-gray-400 mt-1">
                   Emitido por la Municipalidad de Coyhaique según Ley N°19.862
                 </p>

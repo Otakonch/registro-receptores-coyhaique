@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { hasAdminAccess } from "@/lib/roles";
@@ -106,19 +105,15 @@ function drawJustified(
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "Debes iniciar sesion para descargar el certificado" },
-        { status: 401 }
-      );
-    }
+    const { id } = await params;
+    const { user, response } = await requireAuth(req);
+    if (response) return response;
 
     const registration = await db.registration.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         organization: { include: { legalRep: true, members: true } },
       },
@@ -128,8 +123,8 @@ export async function GET(
       return NextResponse.json({ error: "Certificado no disponible" }, { status: 404 });
     }
 
-    const isAdmin = hasAdminAccess((session.user as any).role);
-    const isOwner = registration.organization.legalRepId === (session.user as any).id;
+    const isAdmin = hasAdminAccess(user!.role);
+    const isOwner = registration.organization.legalRepId === user!.id;
     if (!isAdmin && !isOwner) {
       return NextResponse.json(
         { error: "No tienes permiso para descargar este certificado" },
@@ -382,7 +377,7 @@ export async function GET(
     const pdfBytes = await pdfDoc.save();
     const safeName = org.name.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 40);
 
-    return new NextResponse(pdfBytes, {
+    return new NextResponse(Buffer.from(pdfBytes), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="Certificado_${safeName}.pdf"`,

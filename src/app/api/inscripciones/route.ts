@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { hasAdminAccess } from "@/lib/roles";
@@ -32,14 +31,11 @@ const organizationSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const { user, response } = await requireAuth(req);
+    if (response) return response;
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    const userId = (session.user as any).id;
-    const isAdmin = hasAdminAccess((session.user as any).role);
+    const userId = user!.id;
+    const isAdmin = hasAdminAccess(user!.role);
 
     if (isAdmin) {
       const { searchParams } = new URL(req.url);
@@ -95,13 +91,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const { user, response } = await requireAuth(req);
+    if (response) return response;
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    const userId = (session.user as any).id;
+    const userId = user!.id;
 
     const existing = await db.organization.findFirst({ where: { legalRepId: userId } });
     if (existing) {

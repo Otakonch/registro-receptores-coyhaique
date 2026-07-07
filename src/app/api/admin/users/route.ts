@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireSuperAdmin } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
-import { isSuperAdmin } from "@/lib/roles";
 import bcrypt from "bcryptjs";
 import { createAdminLog } from "@/lib/adminLog";
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !isSuperAdmin((session.user as any).role)) {
-    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
-  }
+  const { response } = await requireSuperAdmin(req);
+  if (response) return response;
 
   const { searchParams } = new URL(req.url);
   const q     = searchParams.get("q") ?? "";
@@ -63,10 +59,8 @@ const createSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !isSuperAdmin((session.user as any).role)) {
-    return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
-  }
+  const { user: admin, response } = await requireSuperAdmin(req);
+  if (response) return response;
 
   let body: unknown;
   try {
@@ -93,10 +87,11 @@ export async function POST(req: NextRequest) {
     data: {
       name,
       email,
-      rut:      rut   || null,
-      phone:    phone  || null,
+      rut:      rut?.trim() || `SIN-RUT-${Date.now()}`,
+      phone:    phone?.trim() || null,
       password: hashed,
       role,
+      emailVerified: new Date(),
     },
     select: {
       id:        true,
@@ -110,9 +105,9 @@ export async function POST(req: NextRequest) {
   });
 
   await createAdminLog({
-    adminId:        (session.user as any).id,
-    adminName:      session.user.name  ?? "Admin",
-    adminEmail:     session.user.email ?? "",
+    adminId:        admin!.id,
+    adminName:      admin!.name ?? "Admin",
+    adminEmail:     admin!.email,
     action:         "MODIFICADA",
     orgName:        name,
     orgRut:         null,

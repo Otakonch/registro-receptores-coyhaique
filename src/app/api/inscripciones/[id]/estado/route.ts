@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAdmin, requireAuth } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import {
@@ -9,7 +8,6 @@ import {
   enviarCorreoEnviado,
 } from "@/lib/email";
 import { createAdminLog } from "@/lib/adminLog";
-import { hasAdminAccess } from "@/lib/roles";
 
 const estadoSchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
@@ -19,33 +17,23 @@ const estadoSchema = z.object({
 // PATCH - Actualizar estado (solo admin): APPROVED o REJECTED
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    const isAdmin = hasAdminAccess((session.user as any).role);
-    if (!isAdmin) {
-      return NextResponse.json(
-        { error: "Solo los administradores pueden cambiar el estado" },
-        { status: 403 }
-      );
-    }
+    const { id } = await params;
+    const { user, response } = await requireAdmin(req);
+    if (response) return response;
 
     const body = await req.json();
     const { status, observations } = estadoSchema.parse(body);
 
     const registration = await db.registration.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         status,
         observations,
         reviewedAt: new Date(),
-        reviewedBy: session.user.email ?? undefined,
+        reviewedBy: user!.email,
         approvedAt: status === "APPROVED" ? new Date() : undefined,
       },
       include: {
@@ -55,26 +43,24 @@ export async function PATCH(
       },
     });
 
-    // Registrar acción en el log de administrador
     await createAdminLog({
-      adminId:        (session.user as any).id,
-      adminName:      session.user.name  ?? "Admin",
-      adminEmail:     session.user.email ?? "",
+      adminId:        user!.id,
+      adminName:      user!.name ?? "Admin",
+      adminEmail:     user!.email,
       action:         status === "APPROVED" ? "APROBADA" : "RECHAZADA",
       orgName:        registration.organization.name,
       orgRut:         registration.organization.rut,
-      registrationId: params.id,
+      registrationId: id,
       details:        observations ?? null,
     });
 
-    // Enviar correo al representante legal
     const repNombre = registration.organization.legalRep?.name ?? "";
     const repEmail = registration.organization.legalRep?.email ?? "";
     const orgNombre = registration.organization.name;
 
     if (repEmail) {
       if (status === "APPROVED") {
-        enviarCorreoAprobado(repNombre, repEmail, orgNombre, params.id).catch((e) =>
+        enviarCorreoAprobado(repNombre, repEmail, orgNombre, id).catch((e) =>
           console.error("Error correo aprobación:", e)
         );
       } else if (status === "REJECTED") {
@@ -106,19 +92,17 @@ export async function PATCH(
 // POST - Usuario envía a revisión (DRAFT/REJECTED → PENDING)
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const { id } = await params;
+    const { user, response } = await requireAuth(req);
+    if (response) return response;
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    const userId = (session.user as any).id;
+    const userId = user!.id;
 
     const registration = await db.registration.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         organization: {
           include: { legalRep: true },
@@ -139,13 +123,12 @@ export async function POST(
 
     if (registration.status !== "DRAFT" && registration.status !== "REJECTED") {
       return NextResponse.json(
-        { error: "Solo puedes enviar inscripciones en borrador o rechazadas" },
+        { error: "Solo puedes enviar a revisión inscripciones en borrador o rechazadas" },
         { status: 400 }
       );
     }
 
-    // Verificar que los 7 documentos requeridos estén subidos
-    const REQUIRED_DOC_TYPES = [
+    const requiredDocs = [
       "RUT_ORGANIZACION",
       "CERTIFICADO_DIRECTORIO",
       "CERTIFICADO_LEY_19862",
@@ -154,34 +137,32 @@ export async function POST(
       "ESTATUTOS",
       "CERTIFICADO_BANCARIO",
     ];
-    const uploadedTypes = new Set(registration.documents.map((d: any) => d.type));
-    const missingDocs = REQUIRED_DOC_TYPES.filter((t) => !uploadedTypes.has(t));
-    if (missingDocs.length > 0) {
+    const uploadedTypes = registration.documents.map((d) => d.type);
+    const missing = requiredDocs.filter((t) => !uploadedTypes.includes(t as any));
+
+    if (missing.length > 0) {
       return NextResponse.json(
-        {
-          error: `Faltan ${missingDocs.length} documento${missingDocs.length !== 1 ? "s" : ""} requerido${missingDocs.length !== 1 ? "s" : ""}. Debes subir todos los documentos antes de enviar a revisión.`,
-        },
+        { error: `Faltan documentos: ${missing.join(", ")}` },
         { status: 400 }
       );
     }
 
     const updated = await db.registration.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         status: "PENDING",
         submittedAt: new Date(),
         observations: null,
       },
+      include: {
+        organization: { include: { legalRep: true } },
+      },
     });
 
-    // Correo de confirmación de envío
-    const repNombre = registration.organization.legalRep?.name ?? "";
-    const repEmail = registration.organization.legalRep?.email ?? "";
-    const orgNombre = registration.organization.name;
-
-    if (repEmail) {
-      enviarCorreoEnviado(repNombre, repEmail, orgNombre).catch((e) =>
-        console.error("Error correo envío:", e)
+    const rep = updated.organization.legalRep;
+    if (rep?.email) {
+      enviarCorreoEnviado(rep.name, rep.email, updated.organization.name).catch((e) =>
+        console.error("Error correo enviado:", e)
       );
     }
 
@@ -190,7 +171,7 @@ export async function POST(
       registration: updated,
     });
   } catch (error) {
-    console.error("Error al enviar inscripción:", error);
+    console.error("Error al enviar a revisión:", error);
     return NextResponse.json(
       { error: "Error interno del servidor" },
       { status: 500 }
