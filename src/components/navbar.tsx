@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import { signOutWithClaveUnica } from "@/lib/claveunica-client";
+import { ClaveUnicaButton } from "@/components/claveunica-button";
 import {
   LogOut,
   User,
   LayoutDashboard,
-  ChevronRight,
   List,
   Menu,
   X,
@@ -78,26 +79,16 @@ export function Navbar() {
                     className="text-white/70 hover:text-white hover:bg-white/20 h-7 w-7 p-0"
                     title="Cerrar sesión"
                     aria-label="Cerrar sesión"
-                    onClick={() => signOut({ callbackUrl: window.location.origin })}
+                    onClick={() => signOutWithClaveUnica()}
                   >
                     <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
                 </div>
               </>
             ) : (
-              <>
-                <Link href="/login">
-                  <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 text-xs">
-                    Iniciar Sesión
-                  </Button>
-                </Link>
-                <Link href="/registro">
-                  <Button size="sm" className="bg-white text-primary hover:bg-white/90 font-semibold text-xs">
-                    Inscribir Organización
-                    <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
-                  </Button>
-                </Link>
-              </>
+              <div onClick={() => setMenuOpen(false)}>
+                <ClaveUnicaButton size="s" />
+              </div>
             )}
           </nav>
 
@@ -151,7 +142,10 @@ export function Navbar() {
                     size="sm"
                     className="text-white/60 hover:text-white hover:bg-white/15 text-xs"
                     aria-label="Cerrar sesión"
-                    onClick={() => { setMenuOpen(false); signOut({ callbackUrl: window.location.origin }); }}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      signOutWithClaveUnica();
+                    }}
                   >
                     <LogOut className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
                     Salir
@@ -159,19 +153,9 @@ export function Navbar() {
                 </div>
               </>
             ) : (
-              <>
-                <Link href="/login" onClick={() => setMenuOpen(false)}>
-                  <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/15 text-sm">
-                    Iniciar Sesión
-                  </Button>
-                </Link>
-                <Link href="/registro" onClick={() => setMenuOpen(false)}>
-                  <Button className="w-full bg-white text-primary hover:bg-white/90 font-semibold text-sm mt-1">
-                    Inscribir Organización
-                    <ChevronRight className="h-4 w-4 ml-1" aria-hidden="true" />
-                  </Button>
-                </Link>
-              </>
+              <div className="pt-1" onClick={() => setMenuOpen(false)}>
+                <ClaveUnicaButton size="s" fullWidth />
+              </div>
             )}
           </nav>
         </div>

@@ -1,20 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { db } from "@/lib/db";
+import { getServerSession } from "next-auth";
 import { z } from "zod";
+import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rateLimit";
-import { createVerificationToken, buildAuthUrl } from "@/lib/verification";
-import { enviarCorreoVerificacion } from "@/lib/email";
+import { validateRut } from "@/lib/utils";
 
 const registerSchema = z.object({
-  name:     z.string().min(3,  "El nombre debe tener al menos 3 caracteres"),
-  email:    z.string().email(  "Correo electrónico inválido"),
-  rut:      z.string().min(8,  "RUT inválido"),
-  phone:    z.string().optional(),
-  password: z.string().min(8,  "La contraseña debe tener al menos 8 caracteres"),
+  email: z.string().email("Correo electrónico inválido"),
+  phone: z
+    .string()
+    .trim()
+    .min(8, "Teléfono requerido")
+    .max(30, "Teléfono demasiado largo"),
 });
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  const sessionUser = session?.user;
+
+  if (!sessionUser?.needsRegistration || !sessionUser.rut || !sessionUser.name) {
+    return NextResponse.json(
+      { error: "Debes iniciar sesión con ClaveÚnica antes de registrarte" },
+      { status: 401 }
+    );
+  }
+
   const ip = getClientIp(req);
   if (!rateLimit(`register:${ip}`, 5, 15 * 60 * 1000)) {
     return NextResponse.json(
@@ -27,6 +38,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = registerSchema.parse(body);
     const email = data.email.toLowerCase().trim();
+    const rut = sessionUser.rut;
+    const name = sessionUser.name;
+
+    if (!validateRut(rut)) {
+      return NextResponse.json({ error: "RUT inválido" }, { status: 400 });
+    }
 
     const existingEmail = await db.user.findUnique({ where: { email } });
     if (existingEmail) {
@@ -36,7 +53,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const existingRut = await db.user.findUnique({ where: { rut: data.rut } });
+    const existingRut = await db.user.findUnique({ where: { rut } });
     if (existingRut) {
       return NextResponse.json(
         { error: "Este RUT ya está registrado en el sistema" },
@@ -44,30 +61,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const hashedPassword = await bcrypt.hash(data.password, 12);
-
     const user = await db.user.create({
       data: {
-        name:     data.name,
+        name,
         email,
-        rut:      data.rut,
-        phone:    data.phone,
-        password: hashedPassword,
-        role:     "USER",
+        rut,
+        phone: data.phone,
+        role: "USER",
+        emailVerified: new Date(),
       },
       select: { id: true, name: true, email: true, role: true },
     });
 
-    const { token } = await createVerificationToken("email-verify", email);
-    const verifyUrl = buildAuthUrl("/verificar-correo", token);
-
-    enviarCorreoVerificacion(user.name!, user.email!, verifyUrl).catch((e) =>
-      console.error("Error correo verificación:", e)
-    );
-
     return NextResponse.json(
       {
-        message: "Usuario registrado. Revisa tu correo para verificar la cuenta antes de iniciar sesión.",
+        message: "Cuenta creada correctamente.",
         user,
       },
       { status: 201 }

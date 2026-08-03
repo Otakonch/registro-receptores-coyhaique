@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LogoMunicipalidad } from "@/components/logo-municipalidad";
 import {
@@ -8,7 +6,6 @@ import {
   Users,
   AlertCircle,
   BookOpen,
-  ArrowRight,
   MapPin,
   Phone,
 } from "lucide-react";
@@ -27,8 +24,8 @@ const REQUIRED_DOCS = [
 const STEPS = [
   {
     step: "1",
-    title: "Créate una cuenta",
-    desc: "Regístrate como representante legal de tu organización con tu correo y RUT.",
+    title: "Inicia sesión con ClaveÚnica",
+    desc: "Autentícate como representante legal con tu ClaveÚnica del Estado de Chile.",
   },
   {
     step: "2",
@@ -55,6 +52,7 @@ export default function HomePage() {
           Imagen: /public/coyhaique-hero.jpg
       ═══════════════════════════════════════════════ */}
       <section
+        id="inicio"
         className="relative text-white overflow-hidden"
         style={{ minHeight: 460 }}
       >
@@ -108,24 +106,6 @@ export default function HomePage() {
               <strong className="text-white">Ley N°19.862</strong>.
               Requisito indispensable para acceder a fondos concursables municipales.
             </p>
-
-            {/* Botones */}
-            <div className="flex flex-wrap gap-3">
-              <Link href="/registro">
-                <Button
-                  size="lg"
-                  className="bg-white text-primary hover:bg-green-50 font-bold shadow-xl text-sm px-6"
-                >
-                  Inscribir mi Organización
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </Link>
-              <Link href="/login">
-                <Button size="lg" variant="outline-white" className="text-sm px-6">
-                  Ya tengo cuenta
-                </Button>
-              </Link>
-            </div>
 
             {/* Estadística / badge */}
             <div className="flex items-center gap-3 mt-8">
@@ -262,15 +242,9 @@ export default function HomePage() {
           <h2 className="text-xl font-bold mb-2">
             ¿Listo para inscribir tu organización?
           </h2>
-          <p className="text-white/80 mb-6 text-sm">
+          <p className="text-white/80 text-sm">
             El proceso es 100% en línea. Ten listos los documentos requeridos.
           </p>
-          <Link href="/registro">
-            <Button size="lg" className="bg-white text-primary hover:bg-white/95 font-bold shadow-lg">
-              Comenzar inscripción
-              <ArrowRight className="h-5 w-5 ml-1" />
-            </Button>
-          </Link>
         </section>
 
         {/* Datos de contacto */}

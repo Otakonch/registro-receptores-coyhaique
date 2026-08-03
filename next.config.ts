@@ -16,17 +16,11 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // Scripts propios + Next.js inline
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      // Estilos propios + inline (necesario para Tailwind)
       "style-src 'self' 'unsafe-inline'",
-      // Imágenes: mismo origen + data URIs + API externa de QR
-      "img-src 'self' data: https://api.qrserver.com https://coyhaique.cl",
-      // Fuentes: solo mismo origen
-      "font-src 'self'",
-      // Conexiones: mismo origen
+      "img-src 'self' data: blob: https://api.qrserver.com https://coyhaique.cl",
+      "font-src 'self' data:",
       "connect-src 'self'",
-      // Sin frames externos
       "frame-ancestors 'self'",
     ].join("; "),
   },

@@ -176,31 +176,7 @@ export async function enviarCorreoRechazado(
   });
 }
 
-// 5. Verificación de correo al registrarse
-export async function enviarCorreoVerificacion(nombre: string, email: string, verifyUrl: string) {
-  const content = `
-    <p style="color:#374151;font-size:15px;">Estimado/a <strong>${nombre}</strong>,</p>
-    <p style="color:#374151;font-size:14px;line-height:1.6;">
-      Gracias por registrarte. Para activar tu cuenta, confirma tu correo electrónico haciendo clic en el botón siguiente.
-      El enlace es válido por 24 horas.
-    </p>
-    <p style="text-align:center;margin:28px 0 0;">
-      <a href="${verifyUrl}"
-         style="background:#1d6b33;color:#fff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:700;display:inline-block;">
-        Verificar mi correo
-      </a>
-    </p>
-    <p style="color:#6b7280;font-size:12px;margin-top:20px;">Si no creaste esta cuenta, ignora este mensaje.</p>`;
-
-  await getTransporter().sendMail({
-    from: getFromAddress(),
-    to: email,
-    subject: "Confirma tu correo — Registro de Receptores · Municipalidad de Coyhaique",
-    html: htmlWrapper("Verificación de correo", content),
-  });
-}
-
-// 6. Recuperación de contraseña
+// 5. Recuperación de contraseña
 export async function enviarCorreoRecuperacion(nombre: string, email: string, resetUrl: string) {
   const content = `
     <p style="color:#374151;font-size:15px;">Estimado/a <strong>${nombre}</strong>,</p>

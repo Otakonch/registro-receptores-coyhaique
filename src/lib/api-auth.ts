@@ -23,11 +23,13 @@ async function readJwtToken(req: NextRequest) {
 
 export async function getAuthUser(req: NextRequest): Promise<AuthUser | null> {
   const token = await readJwtToken(req);
-  if (!token?.id || !token.email) return null;
+  // ClaveÚnica autentica por RUN; el email se completa en /registro y puede
+  // no estar aún en sesiones antiguas. Basta con id de usuario en BD.
+  if (!token?.id || token.needsRegistration) return null;
 
   return {
     id: token.id as string,
-    email: token.email as string,
+    email: (token.email as string) ?? "",
     name: (token.name as string | null) ?? null,
     role: (token.role as string) ?? "USER",
   };

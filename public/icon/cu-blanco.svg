@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+  <!-- Isotipo Clave�nica ? blanco sobre transparente -->
+  <!-- Anillo exterior (abertura en la parte superior) -->
+  <path
+    d="M24 6.5
+       A17.5 17.5 0 1 1 22.2 6.55"
+    stroke="#FFFFFF"
+    stroke-width="4.5"
+    stroke-linecap="round"
+    fill="none"
+  />
+  <!-- Anillo interior -->
+  <circle cx="24" cy="25" r="9" stroke="#FFFFFF" stroke-width="4.5" fill="none"/>
+  <!-- Punto central -->
+  <circle cx="24" cy="25" r="3" fill="#FFFFFF"/>
+  <!-- V�stago + bit de llave -->
+  <path
+    d="M24 16 V4 H32"
+    stroke="#FFFFFF"
+    stroke-width="4.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+</svg>

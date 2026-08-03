@@ -1,8 +1,17 @@
 import type { Metadata } from "next";
+import { Roboto } from "next/font/google";
 import "./globals.css";
+import "@/styles/claveunica-button.css";
 import { SessionProvider } from "@/components/session-provider";
 import { Navbar } from "@/components/navbar";
 import { LogoMunicipalidad } from "@/components/logo-municipalidad";
+
+const roboto = Roboto({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-roboto",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Registro de Receptores de Fondos Públicos — Municipalidad de Coyhaique",
@@ -21,8 +30,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
-      <body>
+    <html lang="es" className={roboto.variable}>
+      <body className={roboto.className}>
         <SessionProvider>
           {/* 2.4.1 WCAG — Saltar al contenido principal */}
           <a href="#contenido-principal" className="skip-link">

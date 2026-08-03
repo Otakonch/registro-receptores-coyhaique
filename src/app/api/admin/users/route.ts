@@ -54,7 +54,7 @@ const createSchema = z.object({
   email:    z.string().email("Correo inválido"),
   rut:      z.string().optional(),
   phone:    z.string().optional(),
-  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres").optional(),
   role:     z.enum(["USER", "ADMIN"]).optional().default("USER"),
 });
 
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Ya existe un usuario con ese correo" }, { status: 409 });
   }
 
-  const hashed = await bcrypt.hash(password, 12);
+  const hashed = password ? await bcrypt.hash(password, 12) : null;
   const user = await db.user.create({
     data: {
       name,

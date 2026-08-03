@@ -14,7 +14,7 @@ import { fileURLToPath }  from "url";
 import { dirname, join }  from "path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const envPath   = join(__dirname, ".env.local");
+const envPath   = join(__dirname, ".env");
 
 const C = {
   green: "\x1b[32m", cyan: "\x1b[36m", yellow: "\x1b[33m",

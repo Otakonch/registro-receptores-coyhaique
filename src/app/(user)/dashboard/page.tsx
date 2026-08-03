@@ -25,6 +25,7 @@ import {
   Download,
 } from "lucide-react";
 import { formatDate, DOCUMENT_TYPE_LABELS } from "@/lib/utils";
+import { ProfileEmailForm } from "@/components/profile-email-form";
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -34,6 +35,7 @@ export default function DashboardPage() {
   const [uploadError, setUploadError] = useState<string>("");
   const [submitError, setSubmitError] = useState<string>("");
   // true si el usuario tiene un borrador guardado en localStorage sin haber enviado la inscripción
+  const [profile, setProfile] = useState<{ email?: string; phone?: string } | null>(null);
   const [hasDraft, setHasDraft] = useState(false);
 
   useEffect(() => {
@@ -41,7 +43,10 @@ export default function DashboardPage() {
     if (status === "authenticated") {
       const role = (session?.user as any)?.role;
       if (role === "ADMIN" || role === "SUPER_ADMIN") router.push("/admin");
-      else fetchData();
+      else {
+        fetchData();
+        fetchProfile();
+      }
     }
   }, [status, session]);
 
@@ -59,6 +64,16 @@ export default function DashboardPage() {
       }
     } catch {}
   }, []);
+
+  async function fetchProfile() {
+    try {
+      const res = await fetch("/api/auth/profile");
+      if (res.ok) {
+        const json = await res.json();
+        setProfile(json.user);
+      }
+    } catch {}
+  }
 
   async function fetchData() {
     try {
@@ -102,6 +117,11 @@ export default function DashboardPage() {
           Bienvenido/a, {session?.user?.name}
         </p>
       </div>
+
+      <ProfileEmailForm
+        initialEmail={profile?.email ?? session?.user?.email}
+        initialPhone={profile?.phone}
+      />
 
       {/* Sin organización todavía */}
       {!data && (

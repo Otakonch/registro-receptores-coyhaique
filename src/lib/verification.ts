@@ -1,10 +1,9 @@
 import crypto from "crypto";
 import { db } from "@/lib/db";
 
-export type TokenPurpose = "email-verify" | "password-reset";
+export type TokenPurpose = "password-reset";
 
 const TTL_MS: Record<TokenPurpose, number> = {
-  "email-verify": 24 * 60 * 60 * 1000,
   "password-reset": 60 * 60 * 1000,
 };
 
