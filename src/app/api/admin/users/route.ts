@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       email,
       rut:      rut?.trim() || `SIN-RUT-${Date.now()}`,
       phone:    phone?.trim() || null,
-      password: hashed,
+      ...(hashed ? { password: hashed } : {}),
       role,
       emailVerified: new Date(),
     },
