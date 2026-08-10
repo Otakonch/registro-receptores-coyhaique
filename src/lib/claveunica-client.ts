@@ -1,7 +1,5 @@
 "use client";
 
-import { signOut } from "next-auth/react";
-
 /** URL de logout de ClaveÚnica con redirect a la app */
 export function buildClaveUnicaLogoutUrl(): string {
   const redirect =
@@ -9,8 +7,10 @@ export function buildClaveUnicaLogoutUrl(): string {
   return `https://accounts.claveunica.gob.cl/api/v1/accounts/app/logout?redirect=${encodeURIComponent(redirect)}`;
 }
 
-/** Cierra sesión local y redirige al logout de ClaveÚnica */
-export async function signOutWithClaveUnica() {
-  await signOut({ redirect: false });
-  window.location.href = buildClaveUnicaLogoutUrl();
+/**
+ * Cierra sesión: navega de inmediato a /logout (spinner)
+ * para no mostrar /login mientras se limpia la sesión.
+ */
+export function signOutWithClaveUnica() {
+  window.location.assign("/logout");
 }
