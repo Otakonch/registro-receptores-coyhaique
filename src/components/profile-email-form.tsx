@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,15 @@ export function ProfileEmailForm({ initialEmail, initialPhone }: ProfileEmailFor
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // El perfil llega async desde /api/auth/profile; sincronizar cuando cargue
+  useEffect(() => {
+    setEmail(initialEmail ?? "");
+  }, [initialEmail]);
+
+  useEffect(() => {
+    setPhone(initialPhone ?? "");
+  }, [initialPhone]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -36,6 +45,8 @@ export function ProfileEmailForm({ initialEmail, initialPhone }: ProfileEmailFor
         setError(data.error || "Error al actualizar");
       } else {
         setSuccess("Datos de contacto actualizados.");
+        if (data.user?.email) setEmail(data.user.email);
+        if (data.user?.phone != null) setPhone(data.user.phone);
       }
     } catch {
       setError("Ocurrió un error. Inténtalo nuevamente.");
@@ -84,8 +95,10 @@ export function ProfileEmailForm({ initialEmail, initialPhone }: ProfileEmailFor
             <Label htmlFor="profile-phone">Teléfono</Label>
             <Input
               id="profile-phone"
+              type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              required
               disabled={loading}
             />
           </div>

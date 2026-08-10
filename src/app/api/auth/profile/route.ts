@@ -6,7 +6,11 @@ import { db } from "@/lib/db";
 
 const updateSchema = z.object({
   email: z.string().email("Correo electrónico inválido"),
-  phone: z.string().optional(),
+  phone: z
+    .string()
+    .trim()
+    .min(8, "Teléfono requerido")
+    .max(30, "Teléfono demasiado largo"),
 });
 
 export async function GET() {
@@ -61,7 +65,7 @@ export async function PATCH(req: NextRequest) {
       where: { id: userId },
       data: {
         email,
-        phone: data.phone ?? current.phone,
+        phone: data.phone,
         emailVerified: new Date(),
       },
       select: { id: true, name: true, email: true, phone: true },
