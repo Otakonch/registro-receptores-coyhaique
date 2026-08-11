@@ -32,6 +32,7 @@ function RegisterForm() {
       return;
     }
     if (
+      !success &&
       status === "authenticated" &&
       session?.user &&
       !isPendingRegistration(session.user)
@@ -45,7 +46,7 @@ function RegisterForm() {
         })
       );
     }
-  }, [status, session, router]);
+  }, [status, session, router, success]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,7 +70,9 @@ function RegisterForm() {
 
       setSuccess(true);
       await update({ registered: true });
-      window.location.assign("/dashboard");
+      window.setTimeout(() => {
+        window.location.assign("/dashboard");
+      }, 1600);
     } catch {
       setError("Ocurrió un error. Inténtalo nuevamente.");
       setLoading(false);
