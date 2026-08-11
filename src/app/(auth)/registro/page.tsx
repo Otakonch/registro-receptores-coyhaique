@@ -14,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { AlertCircle, CheckCircle, Loader2, UserPlus } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle, Loader2, UserPlus } from "lucide-react";
 import { ClaveUnicaButton } from "@/components/claveunica-button";
 import { getPostLoginPath, isPendingRegistration } from "@/lib/post-login-path";
 
@@ -70,9 +70,6 @@ function RegisterForm() {
 
       setSuccess(true);
       await update({ registered: true });
-      window.setTimeout(() => {
-        window.location.assign("/dashboard");
-      }, 1600);
     } catch {
       setError("Ocurrió un error. Inténtalo nuevamente.");
       setLoading(false);
@@ -94,9 +91,13 @@ function RegisterForm() {
           <CardContent className="py-12">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-800 mb-2">¡Cuenta creada!</h2>
-            <p className="text-gray-500">
-              Redirigiendo a tu panel de inscripción...
+            <p className="text-gray-500 mb-6">
+              Gracias por registrarte. Ya puedes continuar con la inscripción de tu organización.
             </p>
+            <Button onClick={() => window.location.assign("/dashboard")}>
+              Ir a mi inscripción
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
           </CardContent>
         </Card>
       </div>
