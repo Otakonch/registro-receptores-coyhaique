@@ -204,7 +204,8 @@ export const authOptions: NextAuthOptions = {
 
   pages: {
     signIn: "/login",
-    error: "/login",
+    // Fallos OAuth (state expirado, etc.) → inicio, no /login?error=
+    error: "/auth/error",
   },
 
   secret: process.env.NEXTAUTH_SECRET,
