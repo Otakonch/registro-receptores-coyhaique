@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { LogoMunicipalidad } from "@/components/logo-municipalidad";
+import { AuthErrorBanner } from "@/components/auth-error-banner";
 import {
   FileText,
   CheckCircle,
@@ -47,6 +49,9 @@ const STEPS = [
 export default function HomePage() {
   return (
     <div>
+      <Suspense fallback={null}>
+        <AuthErrorBanner />
+      </Suspense>
       {/* ═══════════════════════════════════════════════
           HERO — foto de fondo + overlay degradado
           Imagen: /public/coyhaique-hero.jpg
