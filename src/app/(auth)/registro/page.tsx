@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/card";
 import { AlertCircle, CheckCircle, Loader2, UserPlus } from "lucide-react";
 import { ClaveUnicaButton } from "@/components/claveunica-button";
-import { getPostLoginPath } from "@/lib/post-login-path";
+import { getPostLoginPath, isPendingRegistration } from "@/lib/post-login-path";
 
 function RegisterForm() {
   const router = useRouter();
@@ -31,11 +31,17 @@ function RegisterForm() {
       router.replace("/login");
       return;
     }
-    if (status === "authenticated" && session?.user && !session.user.needsRegistration) {
+    if (
+      status === "authenticated" &&
+      session?.user &&
+      !isPendingRegistration(session.user)
+    ) {
       router.replace(
         getPostLoginPath({
           needsRegistration: false,
           role: session.user.role,
+          id: session.user.id,
+          rut: session.user.rut,
         })
       );
     }
@@ -61,11 +67,9 @@ function RegisterForm() {
         return;
       }
 
-      await update({ registered: true });
       setSuccess(true);
-      setTimeout(() => {
-        router.replace("/dashboard");
-      }, 1500);
+      await update({ registered: true });
+      window.location.assign("/dashboard");
     } catch {
       setError("Ocurrió un error. Inténtalo nuevamente.");
       setLoading(false);
@@ -80,10 +84,6 @@ function RegisterForm() {
     );
   }
 
-  if (!session?.user?.needsRegistration) {
-    return null;
-  }
-
   if (success) {
     return (
       <div className="flex items-center justify-center min-h-[80vh] px-4">
@@ -96,6 +96,14 @@ function RegisterForm() {
             </p>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  if (!isPendingRegistration(session?.user)) {
+    return (
+      <div className="flex items-center justify-center min-h-[80vh]">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }

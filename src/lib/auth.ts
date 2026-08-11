@@ -156,13 +156,25 @@ export const authOptions: NextAuthOptions = {
           token.needsRegistration = false;
         } else {
           token.needsRegistration = true;
-          delete token.id;
-          delete token.role;
-          delete token.email;
+          token.id = undefined;
+          token.role = undefined;
+          token.email = undefined;
         }
 
         token.lastChecked = Date.now();
         return token;
+      }
+
+      // Si el id quedó como RUT (profile OAuth) y no hay usuario en BD
+      if (token.rut && token.id === token.rut) {
+        token.needsRegistration = true;
+        token.id = undefined;
+        token.role = undefined;
+        token.email = undefined;
+      }
+
+      if (token.needsRegistration === undefined && token.rut && !token.id) {
+        token.needsRegistration = true;
       }
 
       // Re-verificar usuario registrado contra la BD

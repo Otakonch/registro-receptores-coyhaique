@@ -14,6 +14,8 @@ export async function GET() {
     getPostLoginPath({
       needsRegistration: user.needsRegistration,
       role: user.role,
+      id: user.id,
+      rut: user.rut,
     })
   );
 }

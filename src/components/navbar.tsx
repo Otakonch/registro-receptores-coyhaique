@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { signOutWithClaveUnica } from "@/lib/claveunica-client";
 import { ClaveUnicaButton } from "@/components/claveunica-button";
+import { isPendingRegistration } from "@/lib/post-login-path";
 import {
   LogOut,
   User,
@@ -20,6 +21,7 @@ export function Navbar() {
   const { data: session } = useSession();
   const role = (session?.user as any)?.role;
   const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
+  const pendingRegistration = isPendingRegistration(session?.user);
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -62,12 +64,14 @@ export function Navbar() {
 
             {session ? (
               <>
+                {!pendingRegistration && (
                 <Link href={isAdmin ? "/admin" : "/dashboard"}>
                   <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 text-xs">
                     <LayoutDashboard className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
                     {isAdmin ? "Panel Admin" : "Mi Inscripción"}
                   </Button>
                 </Link>
+                )}
                 <div className="flex items-center gap-2 ml-2 pl-2 border-l border-white/30">
                   <User className="h-3.5 w-3.5 text-white/60" aria-hidden="true" />
                   <span className="text-xs text-white/80 max-w-[120px] truncate">
@@ -124,12 +128,14 @@ export function Navbar() {
 
             {session ? (
               <>
+                {!pendingRegistration && (
                 <Link href={isAdmin ? "/admin" : "/dashboard"} onClick={() => setMenuOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/15 text-sm">
                     <LayoutDashboard className="h-4 w-4 mr-2" aria-hidden="true" />
                     {isAdmin ? "Panel Administrador" : "Mi Inscripción"}
                   </Button>
                 </Link>
+                )}
                 <div className="border-t border-white/10 pt-2 mt-1 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-white/50" aria-hidden="true" />

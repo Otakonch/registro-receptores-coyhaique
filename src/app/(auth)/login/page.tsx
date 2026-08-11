@@ -21,6 +21,8 @@ function LoginContent() {
         getPostLoginPath({
           needsRegistration: session.user.needsRegistration,
           role: session.user.role,
+          id: session.user.id,
+          rut: session.user.rut,
         })
       );
     }

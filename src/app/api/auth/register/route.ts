@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
+import { isPendingRegistration } from "@/lib/post-login-path";
 import { db } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rateLimit";
 import { validateRut } from "@/lib/utils";
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const sessionUser = session?.user;
 
-  if (!sessionUser?.needsRegistration || !sessionUser.rut || !sessionUser.name) {
+  if (!isPendingRegistration(sessionUser) || !sessionUser?.rut || !sessionUser.name) {
     return NextResponse.json(
       { error: "Debes iniciar sesión con ClaveÚnica antes de registrarte" },
       { status: 401 }

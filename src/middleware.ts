@@ -1,13 +1,14 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 import { hasAdminAccess } from "@/lib/roles";
+import { isPendingRegistration } from "@/lib/post-login-path";
 
 export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token;
     const { pathname } = req.nextUrl;
 
-    if (token?.needsRegistration) {
+    if (isPendingRegistration(token)) {
       if (pathname.startsWith("/dashboard") || pathname.startsWith("/inscripcion") || pathname.startsWith("/admin")) {
         return NextResponse.redirect(new URL("/registro", req.url));
       }
