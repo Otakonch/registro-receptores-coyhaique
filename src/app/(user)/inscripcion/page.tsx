@@ -39,6 +39,12 @@ interface Member {
   address: string;
 }
 
+function toDateInput(value: string | Date | null | undefined): string {
+  if (!value) return "";
+  const raw = typeof value === "string" ? value : value.toISOString();
+  return raw.slice(0, 10);
+}
+
 export default function InscripcionPage() {
   const { status } = useSession();
   const router = useRouter();
@@ -48,6 +54,8 @@ export default function InscripcionPage() {
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [registrationId, setRegistrationId] = useState<string | null>(null);
 
   // Errores de campo individuales
   const [orgErrors, setOrgErrors] = useState<Record<string, string>>({});
@@ -73,42 +81,101 @@ export default function InscripcionPage() {
   // Con el flag, los effects de guardar ignoran la primera ejecución.
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Al montar el componente, restaura cualquier borrador previo y activa el flag
+  // Carga inscripción existente (rechazada/borrador) o restaura borrador local
   useEffect(() => {
-    try {
-      const savedOrg = localStorage.getItem("inscripcion_org");
-      const savedMembers = localStorage.getItem("inscripcion_members");
-      const savedStep = localStorage.getItem("inscripcion_step");
-      if (savedOrg) setOrg(JSON.parse(savedOrg));
-      if (savedMembers) setMembers(JSON.parse(savedMembers));
-      if (savedStep) setStep(Number(savedStep));
-    } catch {}
-    // Marca como inicializado: a partir de aquí los cambios de estado
-    // ya reflejan los datos del borrador (o los defaults si no había borrador)
-    setIsInitialized(true);
-  }, []);
+    if (status !== "authenticated") return;
+
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch("/api/inscripciones");
+        const data = await res.json();
+        const existing = data.organization;
+        const regStatus = existing?.registration?.status as string | undefined;
+
+        if (existing && (regStatus === "PENDING" || regStatus === "APPROVED")) {
+          router.replace("/dashboard");
+          return;
+        }
+
+        if (existing && (regStatus === "DRAFT" || regStatus === "REJECTED") && existing.registration?.id) {
+          if (cancelled) return;
+          setEditMode(true);
+          setRegistrationId(existing.registration.id);
+          setOrg({
+            name: existing.name ?? "",
+            rut: existing.rut ?? "",
+            type: existing.type ?? "",
+            address: existing.address ?? "",
+            commune: existing.commune ?? "",
+            phone: existing.phone ?? "",
+            email: existing.email ?? "",
+            registroNacional: existing.registroNacional ?? "",
+            bankName: existing.bankName ?? "",
+            bankAccountType: existing.bankAccountType ?? "",
+            bankAccountNumber: existing.bankAccountNumber ?? "",
+            directorioVigencia: toDateInput(existing.directorioVigencia),
+          });
+          const loadedMembers: Member[] =
+            existing.members?.length > 0
+              ? existing.members.map((m: Member) => ({
+                  name: m.name ?? "",
+                  rut: m.rut ?? "",
+                  role: m.role ?? "",
+                  email: m.email ?? "",
+                  phone: m.phone ?? "",
+                  address: m.address ?? "",
+                }))
+              : defaultMembers;
+          setMembers(loadedMembers);
+          setMemberErrors(loadedMembers.map(() => ({})));
+          setIsInitialized(true);
+          return;
+        }
+      } catch {
+        // Si falla la carga, se intenta el borrador local
+      }
+
+      if (cancelled) return;
+      try {
+        const savedOrg = localStorage.getItem("inscripcion_org");
+        const savedMembers = localStorage.getItem("inscripcion_members");
+        const savedStep = localStorage.getItem("inscripcion_step");
+        if (savedOrg) setOrg(JSON.parse(savedOrg));
+        if (savedMembers) setMembers(JSON.parse(savedMembers));
+        if (savedStep) setStep(Number(savedStep));
+      } catch {}
+      setIsInitialized(true);
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [status, router]);
 
   // Guardar datos en localStorage cuando cambien (solo después de la restauración inicial)
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || editMode) return;
     try {
       localStorage.setItem("inscripcion_org", JSON.stringify(org));
     } catch {}
-  }, [org, isInitialized]);
+  }, [org, isInitialized, editMode]);
 
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || editMode) return;
     try {
       localStorage.setItem("inscripcion_members", JSON.stringify(members));
     } catch {}
-  }, [members, isInitialized]);
+  }, [members, isInitialized, editMode]);
 
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || editMode) return;
     try {
       localStorage.setItem("inscripcion_step", String(step));
     } catch {}
-  }, [step, isInitialized]);
+  }, [step, isInitialized, editMode]);
 
   if (status === "unauthenticated") {
     router.push("/login");
@@ -292,11 +359,16 @@ export default function InscripcionPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/inscripciones", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...org, members }),
-      });
+      const res = await fetch(
+        editMode && registrationId
+          ? `/api/inscripciones/${registrationId}`
+          : "/api/inscripciones",
+        {
+          method: editMode && registrationId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...org, members }),
+        }
+      );
 
       const data = await res.json();
 
@@ -327,10 +399,12 @@ export default function InscripcionPage() {
           </svg>
         </div>
         <h2 className="text-2xl font-bold text-gray-800 mb-3">
-          ¡Datos guardados con éxito!
+          {editMode ? "¡Datos actualizados!" : "¡Datos guardados con éxito!"}
         </h2>
         <p className="text-gray-500 mb-2">
-          Los datos de tu organización fueron registrados correctamente.
+          {editMode
+            ? "Los datos de tu organización fueron actualizados correctamente."
+            : "Los datos de tu organización fueron registrados correctamente."}
         </p>
         <p className="text-gray-400 text-sm mb-8">
           Ahora debes subir los documentos requeridos desde tu panel. Cuando estén todos listos,
@@ -347,10 +421,12 @@ export default function InscripcionPage() {
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800">
-          Inscripción de Organización
+          {editMode ? "Actualizar datos de la organización" : "Inscripción de Organización"}
         </h1>
         <p className="text-gray-500 mt-1">
-          Completa los datos para registrar tu organización
+          {editMode
+            ? "Corrige la información de tu organización y directorio. Luego podrás reemplazar documentos y volver a enviar a revisión."
+            : "Completa los datos para registrar tu organización"}
         </p>
       </div>
 
@@ -502,9 +578,11 @@ export default function InscripcionPage() {
                 Volver
               </Button>
               <div className="flex gap-2">
+                {!editMode && (
                 <Button variant="outline" onClick={handleGuardar} className="text-green-700 border-green-300 hover:bg-green-50">
                   Guardar borrador
                 </Button>
+                )}
                 <Button
                   onClick={() => {
                     if (!org.name || !org.rut || !org.type || !org.address || !org.commune || !org.phone || !org.email) {
@@ -693,9 +771,11 @@ export default function InscripcionPage() {
               Volver
             </Button>
             <div className="flex gap-2">
+              {!editMode && (
               <Button variant="outline" onClick={handleGuardar} className="text-green-700 border-green-300 hover:bg-green-50">
                 Guardar borrador
               </Button>
+              )}
               <Button onClick={() => {
                 const invalid = members.some(m => !m.name || !m.rut || !m.role || !m.email || !m.phone || !m.address);
                 if (invalid) {
@@ -786,9 +866,11 @@ export default function InscripcionPage() {
                 Volver
               </Button>
               <div className="flex gap-2">
+                {!editMode && (
                 <Button variant="outline" onClick={handleGuardar} className="text-green-700 border-green-300 hover:bg-green-50">
                   Guardar borrador
                 </Button>
+                )}
                 <Button
                   onClick={() => {
                     if (!org.bankName || !org.bankAccountType || !org.bankAccountNumber) {
@@ -806,7 +888,7 @@ export default function InscripcionPage() {
                       Guardando...
                     </>
                   ) : (
-                    "Guardar y continuar"
+                    editMode ? "Guardar cambios" : "Guardar y continuar"
                   )}
                 </Button>
               </div>

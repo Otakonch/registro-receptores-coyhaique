@@ -23,6 +23,7 @@ import {
   Clock,
   Upload,
   Download,
+  Pencil,
 } from "lucide-react";
 import { formatDate, DOCUMENT_TYPE_LABELS } from "@/lib/utils";
 import { ProfileEmailForm } from "@/components/profile-email-form";
@@ -271,10 +272,21 @@ export default function DashboardPage() {
                         </p>
                       )}
                       <p className="text-sm text-red-600 mt-1">
-                        Corrige los problemas indicados y vuelve a enviar tu solicitud.
+                        Puedes actualizar los datos de la organización y reemplazar documentos, luego vuelve a enviar tu solicitud.
                       </p>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {(data.registration?.status === "DRAFT" || data.registration?.status === "REJECTED") && (
+                <div className="mb-4">
+                  <Link href="/inscripcion">
+                    <Button variant="outline" size="sm">
+                      <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                      Actualizar datos de la organización
+                    </Button>
+                  </Link>
                 </div>
               )}
 
