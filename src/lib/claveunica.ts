@@ -28,9 +28,7 @@ export function getClaveUnicaConfig() {
   const clientSecret = process.env.CLAVEUNICA_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    throw new Error(
-      "Faltan CLAVEUNICA_CLIENT_ID o CLAVEUNICA_CLIENT_SECRET en las variables de entorno"
-    );
+    throw new Error("Faltan credenciales de ClaveÚnica en las variables de entorno");
   }
 
   return {

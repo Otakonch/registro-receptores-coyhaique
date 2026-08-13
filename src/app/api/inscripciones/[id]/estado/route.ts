@@ -58,14 +58,26 @@ export async function PATCH(
     const repEmail = registration.organization.legalRep?.email ?? "";
     const orgNombre = registration.organization.name;
 
-    if (repEmail) {
-      if (status === "APPROVED") {
-        enviarCorreoAprobado(repNombre, repEmail, orgNombre, id).catch((e) =>
-          console.error("Error correo aprobación:", e)
-        );
-      } else if (status === "REJECTED") {
-        enviarCorreoRechazado(repNombre, repEmail, orgNombre, observations).catch((e) =>
-          console.error("Error correo rechazo:", e)
+    let emailNotified = false;
+    let emailError: string | null = null;
+
+    if (!repEmail) {
+      emailError = "El representante no tiene correo registrado.";
+      console.error("No se envió correo de resultado: representante sin email", id);
+    } else {
+      try {
+        if (status === "APPROVED") {
+          await enviarCorreoAprobado(repNombre, repEmail, orgNombre, id);
+        } else if (status === "REJECTED") {
+          await enviarCorreoRechazado(repNombre, repEmail, orgNombre, observations);
+        }
+        emailNotified = true;
+        console.log(`Correo de ${status === "APPROVED" ? "aprobación" : "rechazo"} enviado a ${repEmail}`);
+      } catch (e) {
+        emailError = e instanceof Error ? e.message : "Error al enviar el correo";
+        console.error(
+          `Error correo ${status === "APPROVED" ? "aprobación" : "rechazo"} a ${repEmail}:`,
+          e
         );
       }
     }
@@ -73,6 +85,8 @@ export async function PATCH(
     return NextResponse.json({
       message: `Inscripción ${status === "APPROVED" ? "aprobada" : "rechazada"} exitosamente`,
       registration,
+      emailNotified,
+      emailError,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -161,9 +175,12 @@ export async function POST(
 
     const rep = updated.organization.legalRep;
     if (rep?.email) {
-      enviarCorreoEnviado(rep.name, rep.email, updated.organization.name).catch((e) =>
-        console.error("Error correo enviado:", e)
-      );
+      try {
+        await enviarCorreoEnviado(rep.name, rep.email, updated.organization.name);
+        console.log(`Correo de solicitud enviada notificado a ${rep.email}`);
+      } catch (e) {
+        console.error("Error correo enviado:", e);
+      }
     }
 
     return NextResponse.json({

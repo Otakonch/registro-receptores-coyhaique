@@ -79,6 +79,7 @@ export default function InscripcionDetailPage() {
   const [saving, setSaving] = useState(false);
   const [actionDone, setActionDone] = useState("");
   const [actionError, setActionError] = useState("");
+  const [emailNotified, setEmailNotified] = useState<boolean | null>(null);
 
   // — Estado del modo edición —
   const [editing, setEditing] = useState(false);
@@ -236,9 +237,22 @@ export default function InscripcionDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus, observations }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setActionDone(newStatus === "APPROVED" ? "aprobada" : "rechazada");
+        setEmailNotified(data.emailNotified === true);
+        if (data.emailNotified === false) {
+          setActionError(
+            data.emailError
+              ? `La inscripción se actualizó, pero no se pudo notificar por correo: ${data.emailError}`
+              : "La inscripción se actualizó, pero no se pudo notificar por correo al representante."
+          );
+        } else {
+          setActionError("");
+        }
         await fetchData();
+      } else {
+        setActionError(data.error || "No se pudo actualizar la inscripción.");
       }
     } finally {
       setSaving(false);
@@ -331,6 +345,16 @@ export default function InscripcionDetailPage() {
           }`}
         >
           ✓ Inscripción {actionDone} exitosamente.
+          {emailNotified === true && (
+            <span className="block mt-1 font-normal">
+              Se envió un correo al representante legal.
+            </span>
+          )}
+        </div>
+      )}
+      {actionError && (
+        <div className="p-4 rounded-lg border bg-amber-50 border-amber-200 text-amber-800 text-sm">
+          {actionError}
         </div>
       )}
       {editSuccess && !editing && (
