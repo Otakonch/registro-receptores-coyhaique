@@ -88,6 +88,42 @@ export async function enviarCorreoBienvenida(nombre: string, email: string) {
   });
 }
 
+// 2b. Aviso a administradores cuando llega una nueva solicitud
+export async function enviarCorreoNuevaInscripcionAdmin(
+  adminEmails: string[],
+  orgNombre: string,
+  orgRut: string,
+  repNombre: string,
+  registrationId: string
+) {
+  if (adminEmails.length === 0) return;
+
+  const reviewUrl = `${process.env.NEXTAUTH_URL}/admin/inscripciones/${registrationId}`;
+  const content = `
+    <p style="color:#374151;font-size:14px;line-height:1.6;">
+      Se ha recibido una nueva solicitud de inscripción pendiente de revisión.
+    </p>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:16px;margin:20px 0;">
+      <p style="color:#92400e;font-size:13px;margin:0 0 8px;"><strong>Organización:</strong> ${orgNombre}</p>
+      <p style="color:#92400e;font-size:13px;margin:0 0 8px;"><strong>RUT:</strong> ${orgRut}</p>
+      <p style="color:#92400e;font-size:13px;margin:0;"><strong>Representante legal:</strong> ${repNombre}</p>
+    </div>
+    <p style="text-align:center;margin:28px 0 0;">
+      <a href="${reviewUrl}"
+         style="background:#0f3d1a;color:#fff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:700;display:inline-block;">
+        Revisar solicitud
+      </a>
+    </p>`;
+
+  await getTransporter().sendMail({
+    from: getFromAddress(),
+    to: getFromAddress(),
+    bcc: adminEmails,
+    subject: `Nueva solicitud de inscripción — ${orgNombre}`,
+    html: htmlWrapper("Nueva Solicitud Pendiente", content),
+  });
+}
+
 // 2. Correo cuando envía a revisión
 export async function enviarCorreoEnviado(nombre: string, email: string, orgNombre: string) {
   const content = `

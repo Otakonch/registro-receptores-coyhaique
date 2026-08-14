@@ -6,7 +6,9 @@ import {
   enviarCorreoAprobado,
   enviarCorreoRechazado,
   enviarCorreoEnviado,
+  enviarCorreoNuevaInscripcionAdmin,
 } from "@/lib/email";
+import { getAdminNotificationEmails } from "@/lib/admin-users";
 import { createAdminLog } from "@/lib/adminLog";
 
 const estadoSchema = z.object({
@@ -181,6 +183,22 @@ export async function POST(
       } catch (e) {
         console.error("Error correo enviado:", e);
       }
+    }
+
+    try {
+      const adminEmails = await getAdminNotificationEmails();
+      if (adminEmails.length > 0) {
+        await enviarCorreoNuevaInscripcionAdmin(
+          adminEmails,
+          updated.organization.name,
+          updated.organization.rut,
+          rep?.name ?? "Sin nombre",
+          id
+        );
+        console.log(`Aviso de nueva inscripción enviado a ${adminEmails.length} admin(s)`);
+      }
+    } catch (e) {
+      console.error("Error correo aviso admin:", e);
     }
 
     return NextResponse.json({
